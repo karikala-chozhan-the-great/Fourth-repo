@@ -5,7 +5,7 @@
 const W = 1920, H = 1080, FPS = 30;
 const INK = '#1c1b22', SKIN = '#ffe6c9', PAPER = '#fbf5e6';
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
-let TL = null, E = {}, NOW = 0, BF = 0, JC = 0;
+let TL = null, E = {}, NOW = 0, BF = 0, JC = 0, SCR_DX = 0;
 
 const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -45,24 +45,28 @@ function wrap(s, maxW, font) { ctx.font = font; const out = []; let cur = ''; s.
 // ------------------------------------------------------------------ timeline helpers
 const beat = id => TL.beats.find(b => b.id === id);
 function mouthOf(id, t) { const b = beat(id); if (t < b.start || t > b.end) return 0; const i = Math.floor((t - b.start) * FPS); return b.env[Math.min(i, b.env.length - 1)] || 0; }
+function mwOf(id, t) { const b = beat(id); if (t < b.start || t > b.end) return .5; const i = Math.floor((t - b.start) * FPS); return b.mw[Math.min(i, b.mw.length - 1)] ?? .5; }
+function lip(id, t) { return { mouth: mouthOf(id, t), mw: mwOf(id, t) }; }
+function w2s(x, y) { const m = ctx.getTransform(); return { x: m.a * x + m.c * y + m.e - SCR_DX, y: m.b * x + m.d * y + m.f }; }
+function hud(fn) { ctx.save(); ctx.setTransform(1, 0, 0, 1, SCR_DX, 0); fn(); ctx.restore(); }
 const talking = (id, t) => { const b = beat(id); return t >= b.start - .05 && t <= b.end + .1; };
 
 // ------------------------------------------------------------------ speech + thought bubbles
 function bubble(txt, cx, cy, ax, ay, t0, t1, o = {}) {
   if (NOW < t0 || NOW > t1 + .2) return;
+  const tp = w2s(ax, ay); ax = clamp(tp.x, 40, W - 40); ay = clamp(tp.y, 40, H - 40);
   const pin = eBack(P(NOW, t0, t0 + .22)), pout = 1 - P(NOW, t1, t1 + .18);
   const sc = Math.min(pin, pout); if (sc <= 0) return;
   const size = o.size || 50, maxW = o.maxW || 560, font = `${size}px ${FONT.hand}`;
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, SCR_DX, 0);
   const lines = wrap(txt, maxW, font); ctx.font = font;
   const tw = Math.max(...lines.map(l => ctx.measureText(l).width)), lh = size * 1.12;
   const bw = tw + 64, bh = lines.length * lh + 46;
-  ctx.save(); ctx.translate(cx, cy); ctx.scale(sc, sc);
-  const dx = ax - cx, dy = ay - cy, ang = Math.atan2(dy, dx);
-  // tail
+  ctx.translate(cx, cy); ctx.scale(sc, sc);
+  const dx = ax - cx, dy = ay - cy;
   const bx = clamp(dx, -bw / 2 + 40, bw / 2 - 40) * .6, by = dy > 0 ? bh / 2 - 6 : -bh / 2 + 6;
   ctx.beginPath(); ctx.moveTo(bx - 26, by); ctx.lineTo(dx * .92, dy * .92); ctx.lineTo(bx + 26, by); ctx.closePath(); fl('#fff'); stk(5);
   rrect(-bw / 2, -bh / 2, bw, bh, 34, '#fff', 5);
-  // cover tail root seam
   ctx.beginPath(); ctx.moveTo(bx - 22, by + (dy > 0 ? -3 : 3)); ctx.lineTo(bx + 22, by + (dy > 0 ? -3 : 3)); stk(10, '#fff');
   const col = o.color || INK;
   lines.forEach((l, i) => text(l, 0, -bh / 2 + 23 + lh * (i + .52), { size, color: col }));
@@ -84,14 +88,16 @@ function thought(cx, cy, w, h, ax, ay, t0, t1) {
 
 // ------------------------------------------------------------------ faces
 function eyes(h, ex, ey, r, look = 0, extra = {}) {
+  if (h.expr === 'coin') { [-ex, ex].forEach(x => { circ(x, ey, r * 2.8, '#ffd23f', 4); text('$', x, ey + 2, { font: 'head', size: r * 4.4, color: '#8a5a00' }); }); return; }
   if (h.blink) { ln(-ex - r, ey, -ex + r, ey, 4); ln(ex - r, ey, ex + r, ey, 4); return; }
   if (h.expr === 'surprised') { [-ex, ex].forEach(x => { circ(x, ey, r * 2, '#fff', 4); circ(x + look * 3, ey, r * .75, INK, 0); }); return; }
   [-ex, ex].forEach(x => { if (extra.white) circ(x, ey, r * 1.7, '#fff', 3); circ(x + look * 2.5, ey, r, INK, 0); });
 }
+const mx = h => .72 + .56 * (h.mw ?? .5), my = h => 1.22 - .5 * (h.mw ?? .5);
 function mouthShape(h, x, y, w, extra = {}) {
   const m = h.mouth || 0;
   if (m > .1) {
-    const o = Math.max(m, .18); ell(x, y + o * 4, w * (.45 + .2 * o), 3 + o * 13, '#7a2230', 4);
+    const o = Math.max(m, .18), kx = .72 + .56 * (h.mw ?? .5), ky = 1.22 - .5 * (h.mw ?? .5); ell(x, y + o * 4, w * (.45 + .2 * o) * kx, (3 + o * 13) * ky, '#7a2230', 4);
     if (o > .5) ell(x, y + o * 4 + 5, w * .26, 4, '#e0707a', 0);
   } else if (h.expr === 'happy') arc(x, y - 6, w * .5, .15, Math.PI - .15, 5);
   else if (h.expr === 'worried') arc(x, y + 14, w * .4, Math.PI + .3, -.3, 5);
@@ -151,7 +157,7 @@ function headCaptain(h) {   // red bandana, eyepatch, bushy beard, gold earring
   // beard + moustache + mouth
   beardBottom(14, R - 2, 70, '#6b3f23', 7);
   [-1, 1].forEach(sd => { ctx.beginPath(); ctx.moveTo(0, 26); ctx.bezierCurveTo(sd * 20, 16, sd * 44, 20, sd * 46, 38); ctx.bezierCurveTo(sd * 30, 30, sd * 12, 36, 0, 34); fl('#8a5330'); stk(3.5); });
-  if (m > .1) { ell(0, 44 + m * 5, 14, 5 + m * 12, '#5a1520', 4); ell(0, 40 + m * 3, 4, 3, '#f1c453', 0); }
+  if (m > .1) { ell(0, 44 + m * 5, 14 * mx(h), (5 + m * 12) * my(h), '#5a1520', 4); ell(0, 40 + m * 3, 4, 3, '#f1c453', 0); }
   else if (h.expr === 'worried') arc(0, 50, 12, Math.PI + .3, -.3, 4.5, '#2a1608');
   else ln(-12, 44, 12, 44, 5, '#2a1608');
 }
@@ -167,7 +173,7 @@ function headBald(h) {      // bald, handlebar moustache, gold tooth, earring, s
   circ(0, 12, 11, '#f2a58f', 4.5);
   // handlebar moustache
   [-1, 1].forEach(sd => { ctx.beginPath(); ctx.moveTo(0, 28); ctx.bezierCurveTo(sd * 22, 20, sd * 46, 30, sd * 52, 44); ctx.bezierCurveTo(sd * 54, 28, sd * 40, 14, sd * 54, 8); ctx.bezierCurveTo(sd * 36, 24, sd * 14, 36, 0, 36); fl('#2a1c14'); stk(3.5); });
-  if (m > .1) { ell(0, 48 + m * 4, 12, 4 + m * 11, '#5a1520', 4); poly([[-3, 45], [4, 45], [4, 53], [-3, 53]], '#f1c453', 2); }
+  if (m > .1) { ell(0, 48 + m * 4, 12 * mx(h), (4 + m * 11) * my(h), '#5a1520', 4); poly([[-3, 45], [4, 45], [4, 53], [-3, 53]], '#f1c453', 2); }
   else { arc(0, 42, 14, .25, 2.9, 4.5); poly([[-3, 49], [4, 49], [4, 56], [-3, 56]], '#f1c453', 2); }
 }
 function headSkinny(h) {    // black skull bandana, huge eyes, thin moustache, missing tooth
@@ -182,7 +188,7 @@ function headSkinny(h) {    // black skull bandana, huge eyes, thin moustache, m
   brow(-9, -19, -30, -24, 5); brow(9, -19, 30, -24, 5);
   circ(0, 14, 7, '#f2a58f', 4);
   ctx.beginPath(); ctx.moveTo(-26, 26); ctx.quadraticCurveTo(0, 20, 26, 26); stk(4.5, '#2a1c14');
-  if (m > .1) { ell(0, 42 + m * 4, 13, 4 + m * 11, '#5a1520', 4); }
+  if (m > .1) { ell(0, 42 + m * 4, 13 * mx(h), (4 + m * 11) * my(h), '#5a1520', 4); }
   else { arc(0, 36, 16, .2, 2.95, 4.5); poly([[3, 44], [10, 44], [10, 50], [3, 50]], '#17151b', 0); }
 }
 function headBlackbeard(h) { // tricorn, enormous black beard with smoking fuses
@@ -195,7 +201,7 @@ function headBlackbeard(h) { // tricorn, enormous black beard with smoking fuses
   const bu = h.expr === 'surprised' ? -6 : 0;
   brow(8, -14 + bu, 36, -22 + bu, 10, '#15131a'); brow(-8, -14 + bu, -36, -22 + bu, 10, '#15131a');
   circ(0, 12, 9, '#f2a58f', 4.5);
-  if (m > .1) { ell(0, 40 + m * 4, 15, 5 + m * 14, '#5a1520', 4); } else ln(-12, 42, 12, 42, 5, '#e9e4d6');
+  if (m > .1) { ell(0, 40 + m * 4, 15 * mx(h), (5 + m * 14) * my(h), '#5a1520', 4); } else ln(-12, 42, 12, 42, 5, '#e9e4d6');
   // tricorn hat
   ctx.beginPath(); ctx.moveTo(-R - 36, -22); ctx.quadraticCurveTo(-R, -46, -30, -78); ctx.lineTo(30, -78); ctx.quadraticCurveTo(R, -46, R + 36, -22); ctx.quadraticCurveTo(0, -14, -R - 36, -22); fl('#1d1b24'); stk(5);
   ln(-R - 30, -24, R + 30, -24, 4, '#f1c453'); circ(0, -40, 7, '#f1c453', 3);
@@ -219,25 +225,27 @@ const OUTFIT = {
 
 function figure(o) {
   const s = o.s || 1, dir = o.dir || 1, t = NOW, ph = o.ph || 0, pz = o.pose || {};
-  const bob = (pz.bob !== undefined ? pz.bob : Math.sin(t * 3.2 + ph) * 2.2) - (o.hop || 0);
-  const hip = { x: (pz.dx || 0), y: -(TH + SH) + (pz.crouch || 0) - bob + 0 };
-  const lean = (pz.lean || 0) + Math.sin(t * 1.7 + ph) * .012;
+  const talk = o.mouth || 0, beatk = Math.abs(Math.sin(t * 9.5 + ph));
+  const bob = (pz.bob !== undefined ? pz.bob : Math.sin(t * 3.2 + ph) * 2.2) + talk * 4 * beatk - (o.hop || 0);
+  const hip = { x: (pz.dx || 0) + Math.sin(t * 1.1 + ph) * 3, y: -(TH + SH) + (pz.crouch || 0) - bob + 0 };
+  const lean = (pz.lean || 0) + Math.sin(t * 1.7 + ph) * .012 + talk * .025 * Math.sin(t * 4.3 + ph);
   const N = { x: hip.x + Math.sin(lean) * TO, y: hip.y - Math.cos(lean) * TO };
-  const tilt = (pz.tilt || 0), hd = { x: N.x + Math.sin(lean + tilt * .5) * (HR + 8), y: N.y - Math.cos(lean + tilt * .5) * (HR + 8) };
+  const tilt = (pz.tilt || 0) + talk * .05 * Math.sin(t * 8.1 + ph) + (o.nod || 0), hd = { x: N.x + Math.sin(lean + tilt * .5) * (HR + 8), y: N.y - Math.cos(lean + tilt * .5) * (HR + 8) };
   o.hx = o.x + dir * s * hd.x; o.hy = o.y + s * hd.y;
   const of = OUTFIT[o.kind] || OUTFIT.plain;
   const blink = ((t + ph * 1.7) % 3.3) < .11;
-  const h = { mouth: o.mouth || 0, expr: o.expr || 'neutral', blink: o.blink !== undefined ? o.blink : blink, look: o.look || 0, shock: o.shock || 0 };
+  const h = { mouth: o.mouth || 0, mw: o.mw, expr: o.expr || 'neutral', blink: o.blink !== undefined ? o.blink : blink, look: o.look || 0, shock: o.shock || 0 };
 
-  ctx.save(); ctx.translate(o.x, o.y); ctx.scale(s * dir, s);
+  ctx.save(); ctx.translate(o.x, o.y); ctx.scale(s * dir * (o.sx || 1), s * (o.sy || 1));
   ell(0, 4, 78, 12, 'rgba(60,45,30,.16)', 0);
+  if (o.rot) { ctx.translate(0, -(TH + SH)); ctx.rotate(o.rot); ctx.translate(0, TH + SH); }
   if (o.behind) o.behind(hip, N, hd);
 
   // legs
   const legs = pz.legs || (pz.walk !== undefined ? (() => {
     const w = pz.walk; const f = p => { const a1 = Math.sin(p) * .62, a2 = a1 - Math.max(0, Math.cos(p)) * .85; return [a1, a2]; };
     return { a: f(w), b: f(w + Math.PI) };
-  })() : { a: [-.07, -.07], b: [.07, .07] });
+  })() : (() => { const sw = Math.sin(t * 1.3 + ph) * .035; return { a: [-.07 + sw, -.07 + sw], b: [.07 + sw, .07 + sw] }; })());
   const legDraw = (L, back, sockOn) => {
     const [a1, a2] = L, kx = hip.x + Math.sin(a1) * TH, ky = hip.y + Math.cos(a1) * TH, ax = kx + Math.sin(a2) * SH, ay = ky + Math.cos(a2) * SH;
     ln(hip.x, hip.y, kx, ky, 10); ln(kx, ky, ax, ay, 10);
@@ -258,7 +266,7 @@ function figure(o) {
   const sh = { x: N.x - Math.sin(lean) * 14, y: N.y + Math.cos(lean) * 14 };
   const armDraw = (A) => {
     const [a1, a2] = A, ex = sh.x + Math.sin(a1) * UA, ey = sh.y + Math.cos(a1) * UA, wx = ex + Math.sin(a1 + a2) * FA, wy = ey + Math.cos(a1 + a2) * FA;
-    ln(sh.x, sh.y, ex, ey, 9); ln(ex, ey, wx, wy, 9); circ(wx, wy, 7.5, SKIN, 4.5); return { wx, wy, ex, ey };
+    ln(sh.x, sh.y, ex, ey, 9); ln(ex, ey, wx, wy, 9); circ(wx, wy, 9, SKIN, 4.5); return { wx, wy, ex, ey };
   };
   const arms = { a: pz.la || [.12, .12], b: pz.ra || [-.12, -.1] };
   const aw = armDraw(arms.a);
@@ -269,7 +277,7 @@ function figure(o) {
   if (of.col) {
     const px = Math.cos(lean), py = Math.sin(lean), long = of.kind === 'robe' || of.kind === 'toga', top = long ? 38 : 33, bot = long ? 52 : 27, ext = long ? 62 : 0;
     const A = [N.x - px * top + Math.sin(lean) * 4 * 0, N.y - py * top + 4], B = [N.x + px * top, N.y + py * top + 4];
-    const C = [hip.x + px * bot, hip.y + py * bot + ext * .6], D = [hip.x - px * bot, hip.y - py * bot + ext * .6];
+    const fl_ = long ? Math.sin(t * 5 + ph) : 0, C = [hip.x + px * bot + fl_ * 7, hip.y + py * bot + ext * .6 + fl_ * 4], D = [hip.x - px * bot + Math.sin(t * 5 + ph + 1.3) * 7 * (long ? 1 : 0), hip.y - py * bot + ext * .6];
     poly([A, B, C, D], of.col, 6);
     if (of.kind === 'toga') { poly([[A[0] + 2, A[1] + 2], [A[0] + 26, A[1]], [C[0] + 2, C[1] - 2], [C[0] - 24, C[1] - 4]], '#7b2d8e', 3.5); circ(A[0] + 16, A[1] + 12, 5, '#f1c453', 2.5); ln(D[0] + 8, D[1] - 14, C[0] - 8, C[1] - 14, 3, 'rgba(120,40,140,.5)'); }
     if (of.kind === 'pirate') {
@@ -297,6 +305,7 @@ function figure(o) {
   ln(N.x, N.y, hd.x - Math.sin(lean + tilt * .5) * (HR - 4) * .6, hd.y + Math.cos(lean + tilt * .5) * (HR - 4) * .6, 9);
   ctx.save(); ctx.translate(hd.x, hd.y); ctx.rotate(tilt); HEADS[o.kind](h);
   if (o.sweat) { for (let i = 0; i < 3; i++) { const p2 = ((t * 1.6 + i / 3) % 1); const sx = (i === 1 ? 0 : (i === 0 ? -1 : 1) * 78), sy = (i === 1 ? -86 : -50) + p2 * 60; ctx.beginPath(); ctx.moveTo(sx, sy - 12); ctx.quadraticCurveTo(sx + 9, sy + 2, sx, sy + 8); ctx.quadraticCurveTo(sx - 9, sy + 2, sx, sy - 12); fl('#7ec8f2'); stk(2.5, '#2b7fb3'); } }
+  if (o.anger) { circ(0, 0, 55, `rgba(229,60,50,${.42 * o.anger})`, 0); for (let i = 0; i < 2; i++) { const p3 = ((t * 2.4 + i * .5) % 1); [-1, 1].forEach(sd => circ(sd * 62 + sd * p3 * 10, -10 - p3 * 90, 10 + p3 * 16, `rgba(255,255,255,${.85 * (1 - p3) * o.anger})`, 0)); } }
   ctx.restore();
   if (o.after) o.after(hip, N, hd);
   ctx.restore();

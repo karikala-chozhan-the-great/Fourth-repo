@@ -1,157 +1,172 @@
-"""Narration (Kokoro), SFX, sea ambience, pirate-waltz music bed and master timeline.
+"""Narration (Kokoro, cast + directed), SFX, sea ambience, pirate-waltz music and master timeline.
 
 usage: python3 -I audio.py <models_dir> <out_dir>   ->  <out_dir>/audio.wav, <out_dir>/timeline.json
+Every line is synthesised phrase by phrase (so each phrase has an exact start time) with its own
+speed/pause "direction", then run through a per-character voice chain (pitch/body, rasp, warmth, room).
 """
 import json, sys, re, math
+from fractions import Fraction
 import numpy as np
 import soundfile as sf
-from scipy.signal import resample_poly, butter, sosfilt
+from scipy.signal import resample_poly, butter, sosfilt, fftconvolve
 from kokoro_onnx import Kokoro
 
 MODELS, OUT = sys.argv[1], sys.argv[2]
 SR, FPS = 48000, 30
+rngv = np.random.default_rng(21)
 
+# ------------------------------------------------------------------ casting
+# v: voice name or (nameA, wA, nameB, wB) blend;  f: pitch/body factor (<1 deeper & bigger);  rasp: gravel;  wet: room echo
+CAST = {
+    "narr":       dict(v="af_heart", f=1.00, rasp=0.0, noise=0.0, warm=0.10, wet=0.00, lang="en-us"),
+    "caesar":     dict(v=("am_michael", .55, "bm_george", .45), f=0.95, rasp=0.0, noise=0.0, warm=0.30, wet=0.10, lang="en-gb"),
+    "captain":    dict(v="am_onyx", f=0.86, rasp=2.2, noise=0.018, warm=0.25, wet=0.0, lang="en-us"),
+    "bald":       dict(v="am_fenrir", f=0.97, rasp=1.4, noise=0.01, warm=0.10, wet=0.0, lang="en-us"),
+    "skinny":     dict(v="am_puck", f=1.22, rasp=0.0, noise=0.0, warm=0.0, wet=0.0, lang="en-us"),
+    "blackbeard": dict(v=("am_onyx", .6, "am_fenrir", .4), f=0.74, rasp=3.2, noise=0.022, warm=0.35, wet=0.16, lang="en-us"),
+}
+# phrase = (text, speed, pause_after)   -- "laugh" = overlapping pirate crowd laughter
 BEATS = [
-    dict(id="b1",  who="narr",    voice="bf_emma",   speed=1.08, gap=0.30, lang="en-gb",
-         text="Seventy-five B.C. Young Julius Caesar is sailing to Rhodes to study public speaking, when pirates grab him."),
-    dict(id="b2",  who="captain", voice="am_onyx",   speed=1.0,  gap=0.20, lang="en-us",
-         text="Arr! We want twenty talents of silver!"),
-    dict(id="b3",  who="caesar",  voice="bm_george", speed=1.0,  gap=0.30, lang="en-gb",
-         text="Twenty? Do you know who I am? Make it fifty."),
-    dict(id="b3b", who="captain", voice="am_onyx",   speed=1.0,  gap=0.30, lang="en-us",
-         text="F-fifty? ... Fine. Fifty it is."),
-    dict(id="b4",  who="narr",    voice="bf_emma",   speed=1.08, gap=0.30, lang="en-gb",
-         text="Yes. He negotiated his own ransom. Upwards."),
-    dict(id="b5",  who="narr",    voice="bf_emma",   speed=1.08, gap=0.25, lang="en-gb",
-         text="For thirty-eight days, while his friends raised the silver, Caesar was the bossiest hostage ever."),
-    dict(id="b6",  who="caesar",  voice="bm_george", speed=1.0,  gap=0.30, lang="en-gb",
-         text="Quiet, please. I'm napping."),
-    dict(id="b6b", who="narr",    voice="bf_emma",   speed=1.08, gap=0.25, lang="en-gb",
-         text="The pirates actually tiptoed."),
-    dict(id="b7",  who="narr",    voice="bf_emma",   speed=1.08, gap=0.25, lang="en-gb",
-         text="He joined their games, and read them his poetry. When they didn't clap, he called them illiterate barbarians."),
-    dict(id="b8",  who="caesar",  voice="bm_george", speed=1.0,  gap=0.25, lang="en-gb",
-         text="Once I'm free, I'll come back and have you all crucified."),
-    dict(id="b9",  who="pirate",  voice="am_eric",   speed=1.0,  gap=0.35, lang="en-us",
-         text="Ha ha ha! Oh, he's a funny one!"),
-    dict(id="b9b", who="blackbeard", voice="am_fenrir", speed=1.0, gap=0.30, lang="en-us",
-         text="Excuse me, I'm from seventeen eighteen. Why am I here?"),
-    dict(id="b10", who="narr",    voice="bf_emma",   speed=1.08, gap=0.25, lang="en-gb",
-         text="They thought he was joking. The ransom was paid, and Caesar sailed off, raised a fleet, and came straight back."),
-    dict(id="b11", who="narr",    voice="bf_emma",   speed=1.08, gap=0.30, lang="en-gb",
-         text="He caught every last pirate, took the silver back with interest, and kept his promise."),
-    dict(id="b12", who="captain", voice="am_onyx",   speed=1.0,  gap=0.40, lang="en-us",
-         text="Wait... he was serious?!"),
-    dict(id="b13", who="narr",    voice="bf_emma",   speed=1.04, gap=0.35, lang="en-gb",
-         text="Moral: if you kidnap a Roman, never undercharge."),
-    dict(id="b14", who="caesar",  voice="bm_george", speed=1.02, gap=0.0,  lang="en-gb",
-         text="Follow and subscribe, or I'll come back with a fleet."),
+    dict(id="b1", who="narr", cast="narr", ph=[("Seventy-five B.C.", 1.1, .15), ("Young Julius Caesar is off to Rhodes, to study public speaking.", 1.15, .2), ("Then, pirates show up.", 1.05, .35), ("Awkward.", .88, 0)], gap=.62),
+    dict(id="b2", who="captain", cast="captain", ph=[("Arr!", 1.0, .1), ("We be wantin' twenty talents o' silver!", 1.02, 0)], gap=.2),
+    dict(id="b3", who="caesar", cast="caesar", ph=[("Twenty?!", .95, .25), ("Do you have ANY idea who I am?", 1.0, .3), ("Make it... fifty.", .92, 0)], gap=.25),
+    dict(id="b3b", who="captain", cast="captain", ph=[("F-fifty?!", 1.0, .2), ("Aye. Fifty it is, then.", 1.0, 0)], gap=.25),
+    dict(id="b4", who="narr", cast="narr", ph=[("Yes.", 1.0, .3), ("The hostage raised his own ransom.", 1.12, 0)], gap=.25),
+    dict(id="b5", who="narr", cast="narr", ph=[("For thirty-eight days, while his friends raised the silver,", 1.22, .15), ("Caesar was the pirates' most demanding guest.", 1.14, 0)], gap=.25),
+    dict(id="b6", who="caesar", cast="caesar", ph=[("Shh!", 1.0, .2), ("Some of us are trying to nap.", 1.0, 0)], gap=.25),
+    dict(id="b6b", who="narr", cast="narr", ph=[("The pirates actually tiptoed.", 1.08, 0)], gap=.22),
+    dict(id="b7", who="narr", cast="narr", ph=[("He read them his poetry.", 1.15, .2), ("When they didn't applaud,", 1.15, .2), ("he called them illiterate barbarians.", 1.12, 0)], gap=.22),
+    dict(id="b8", who="caesar", cast="caesar", ph=[("Oh, and when this is over,", 1.0, .25), ("I'll have every one of you... crucified.", .9, 0)], gap=.22),
+    dict(id="b9", who="pirate", cast="captain", ph=["laugh", ("Oh, ye be a funny one, lad!", 1.02, 0)], gap=.25),
+    dict(id="b9b", who="blackbeard", cast="blackbeard", ph=[("I'm from seventeen eighteen.", .95, .3), ("Why am I here?", .9, 0)], gap=.25),
+    dict(id="b10", who="narr", cast="narr", ph=[("They thought he was joking.", 1.12, .3), ("The ransom was paid,", 1.15, .1), ("and Caesar sailed off, raised a fleet,", 1.18, .1), ("and came straight back.", 1.1, 0)], gap=.22),
+    dict(id="b11", who="narr", cast="narr", ph=[("He caught every last pirate,", 1.12, .15), ("took the silver back, with interest,", 1.12, .15), ("and kept his promise.", 1.05, 0)], gap=.25),
+    dict(id="b12", who="captain", cast="captain", ph=[("Wait...", .85, .3), ("he was serious?!", 1.05, 0)], gap=.3),
+    dict(id="b13", who="narr", cast="narr", ph=[("Moral:", 1.05, .22), ("if you kidnap a Roman, never undercharge.", 1.08, 0)], gap=.3),
+    dict(id="b14", who="caesar", cast="caesar", ph=[("Follow... and subscribe,", 1.0, .3), ("or I'll come back with a fleet.", .95, 0)], gap=0),
 ]
-LEAD_IN, TAIL = 0.8, 2.0
+LEAD_IN, TAIL = 0.8, 1.7
 
 kokoro = Kokoro(f"{MODELS}/kokoro-v1.0.onnx", f"{MODELS}/voices-v1.0.bin")
 def letters(s): return sum(c.isalpha() for c in s)
 def trim(x, thr=0.01):
     idx = np.where(np.abs(x) > thr)[0]
-    return x if len(idx) == 0 else x[max(0, idx[0] - 240): idx[-1] + 480]
-def up(x, sr): return x if sr == SR else resample_poly(x, SR // math.gcd(SR, sr), sr // math.gcd(SR, sr)).astype(np.float32)
+    return x if len(idx) == 0 else x[max(0, idx[0] - 200): idx[-1] + 400]
+def to48(x, sr): return x if sr == SR else resample_poly(x, SR // math.gcd(SR, sr), sr // math.gcd(SR, sr)).astype(np.float32)
+def lowp(x, fc): return sosfilt(butter(2, fc, "lowpass", fs=SR, output="sos"), x)
+def highp(x, fc): return sosfilt(butter(2, fc, "highpass", fs=SR, output="sos"), x)
+def voice_style(v):
+    return kokoro.get_voice_style(v) if isinstance(v, str) else v[1] * kokoro.get_voice_style(v[0]) + v[3] * kokoro.get_voice_style(v[2])
+def varispeed(x, f):                      # f<1: lower pitch + bigger body (and longer); we pre-compensate speed
+    r = Fraction(1 / f).limit_denominator(40)
+    return resample_poly(x, r.numerator, r.denominator).astype(np.float32), float(1 / r)
+def reverb(x, wet):
+    t = np.arange(int(.45 * SR)) / SR; ir = rngv.standard_normal(len(t)) * np.exp(-t * 9); ir[0] = 1
+    ir = lowp(ir, 5000); y = fftconvolve(x, ir * .06)[:len(x)]
+    return (1 - wet) * x + wet * 3.0 * y
+def chain(x, c):
+    if c["rasp"] > 0:
+        d = c["rasp"]; x = .45 * x + .55 * np.tanh(x * d * 4) / np.tanh(d * 4) * (np.max(np.abs(x)) + 1e-9)
+        x = x + highp(rngv.standard_normal(len(x)), 1800) * np.abs(x) * c["noise"] * 6
+    if c["warm"] > 0: x = x + lowp(x, 260) * c["warm"] * 2.2
+    if c["wet"] > 0: x = reverb(x, c["wet"])
+    return x.astype(np.float32)
+def say(text, cast, sp):
+    c = CAST[cast]; f = c["f"]
+    r = Fraction(1 / f).limit_denominator(40); f_eff = float(1 / r)
+    s, sr = kokoro.create(text, voice=voice_style(c["v"]), speed=float(np.clip(1.07 * sp / f_eff, .5, 2.0)), lang=c["lang"])
+    x = to48(trim(s.astype(np.float32)), sr)
+    if abs(f - 1) > .005: x, _ = varispeed(x, f)
+    return chain(x, c)
+def laugh_crowd():
+    parts = []
+    for cast, text, sp, at in (("captain", "Ha ha ha ha ha!", 1.15, 0.0), ("bald", "Har har har har!", 1.2, .11), ("skinny", "Hee hee ha ha ha!", 1.2, .2)):
+        parts.append((say(text, cast, sp) * (1.0 if cast != "skinny" else .8), at))
+    n = int(max(at * SR + len(x) for x, at in parts)); out = np.zeros(n, np.float32)
+    for x, at in parts: out[int(at * SR): int(at * SR) + len(x)] += x
+    return out
 
 voice_chunks, cursor = [], LEAD_IN
 for b in BEATS:
-    samples, sr = kokoro.create(b["text"], voice=b["voice"], speed=b["speed"], lang=b["lang"])
-    x = up(trim(samples.astype(np.float32)), sr)
-    x = np.clip(x * (0.105 / (np.sqrt(np.mean(x ** 2)) + 1e-9)), -0.98, 0.98)
-    f = int(0.008 * SR); x[:f] *= np.linspace(0, 1, f); x[-f:] *= np.linspace(1, 0, f)
+    xs, segs, t0 = [], [], 0.0
+    for p in b["ph"]:
+        if p == "laugh":
+            x = laugh_crowd(); text = "Ha ha ha!"; pause = .12
+        else:
+            text, sp, pause = p; x = say(text, b["cast"], sp)
+        segs.append((text, t0, t0 + len(x) / SR)); xs += [x, np.zeros(int(pause * SR), np.float32)]; t0 += len(x) / SR + pause
+    x = np.concatenate(xs[:-1]) if xs else np.zeros(1, np.float32)
+    voiced = np.abs(x) > 0.01; rms = np.sqrt(np.mean(x[voiced] ** 2) + 1e-9)
+    x = np.clip(x * (0.105 / rms), -0.98, 0.98); f_ = int(.006 * SR); x[:f_] *= np.linspace(0, 1, f_); x[-f_:] *= np.linspace(1, 0, f_)
     b["start"], b["end"] = round(cursor, 3), round(cursor + len(x) / SR, 3)
+    b["segs"] = [(s, round(cursor + a, 3), round(cursor + e, 3)) for s, a, e in segs]
+    b["text"] = " ".join(s for s, _, _ in segs); b["voice"] = b["cast"]
     voice_chunks.append((b, x)); cursor = b["end"] + b["gap"]
-    print(f'{b["id"]:>3} {b["who"]:8} {b["start"]:6.2f}-{b["end"]:6.2f}  {b["text"][:62]}')
+    print(f'{b["id"]:>3} {b["who"]:10} {b["start"]:6.2f}-{b["end"]:6.2f}  {b["text"][:60]}')
 DURATION = round(cursor + TAIL, 3); N = int(DURATION * SR)
 voice = np.zeros(N, np.float32)
 for b, x in voice_chunks:
     s = int(b["start"] * SR); voice[s:s + len(x)] += x[: N - s]
 
-def envelope(x):
-    hop = SR // FPS; n = len(x) // hop + 1
-    env = np.array([np.sqrt(np.mean(x[i*hop:(i+1)*hop] ** 2) + 1e-12) if i * hop < len(x) else 0 for i in range(n)])
-    env = np.clip(env / (np.percentile(env, 92) + 1e-9), 0, 1)
-    return [round(float(v), 3) for v in np.convolve(env, [0.25, 0.5, 0.25], mode="same")]
+# lip-sync tracks: mouth opening (loudness) and width (spectral brightness: "ee" wide, "oo" round)
+def tracks(x):
+    hop = SR // FPS; n = len(x) // hop + 1; env = np.zeros(n); cen = np.zeros(n); fr = np.fft.rfftfreq(2 * hop, 1 / SR)
+    for i in range(n):
+        seg = x[i * hop: i * hop + 2 * hop]
+        if len(seg) < 2 * hop: seg = np.pad(seg, (0, 2 * hop - len(seg)))
+        sp = np.abs(np.fft.rfft(seg * np.hanning(len(seg)))); env[i] = np.sqrt(np.mean(seg[:hop] ** 2) + 1e-12)
+        cen[i] = (fr * sp).sum() / (sp.sum() + 1e-9)
+    env = np.clip(env / (np.percentile(env, 92) + 1e-9), 0, 1); env = np.convolve(env, [.25, .5, .25], mode="same")
+    v = env > .08; lo, hi = (np.percentile(cen[v], 15), np.percentile(cen[v], 85)) if v.sum() > 4 else (500, 2000)
+    mw = np.clip((cen - lo) / (hi - lo + 1e-9), 0, 1); mw = np.convolve(mw, [.25, .5, .25], mode="same")
+    return [round(float(a), 3) for a in env], [round(float(a), 2) for a in mw]
+for b, x in voice_chunks: b["env"], b["mw"] = tracks(x)
 
-def find_segments(b, x):
-    sents = [s for s in re.split(r"(?<=[.!?])\s+", b["text"]) if s.strip()]; n = len(sents)
-    if n == 1: return [(sents[0], b["start"], b["end"])]
-    hop = int(0.01 * SR); e = np.array([np.sqrt(np.mean(x[i:i+hop] ** 2)) for i in range(0, len(x) - hop, hop)])
-    quiet = e < 0.03 * np.sqrt(np.mean(x ** 2)); runs, i = [], 0
-    while i < len(quiet):
-        if quiet[i]:
-            j = i
-            while j < len(quiet) and quiet[j]: j += 1
-            if j - i >= 5 and i > 5 and j < len(quiet) - 5: runs.append((j - i, i, j))
-            i = j
-        else: i += 1
-    cuts = sorted(sorted(runs, reverse=True)[: n - 1], key=lambda r: r[1])
-    if len(cuts) < n - 1:
-        tot, acc, segs = max(1, letters(b["text"])), 0, []
-        for s in sents:
-            st = b["start"] + (b["end"] - b["start"]) * acc / tot; acc += letters(s)
-            segs.append((s, st, b["start"] + (b["end"] - b["start"]) * acc / tot))
-        return segs
-    bounds = [(0, None)] + [(c[2] * .01, c[1] * .01) for c in cuts]
-    return [(s, b["start"] + (bounds[k][0] if k else 0), b["start"] + (bounds[k+1][1] if k + 1 < n else len(x) / SR)) for k, s in enumerate(sents)]
-
-for b, x in voice_chunks:
-    b["env"] = envelope(x); b["segs"] = find_segments(b, x)
 def B(i): return next(q for q in BEATS if q["id"] == i)
+def PH(bid, k): s, a, e = B(bid)["segs"][k]; return a, e
 def wt(bid, phrase):
-    for s, st, en in B(bid)["segs"]:
+    for s, a, e in B(bid)["segs"]:
         i = s.lower().find(phrase.lower())
-        if i >= 0: return st + (en - st) * letters(s[:i]) / max(1, letters(s))
+        if i >= 0: return a + (e - a) * letters(s[:i]) / max(1, letters(s))
     raise AssertionError((bid, phrase))
 
 E = {
     "title_slam": 0.10,
     "cut1": B("b2")["start"] - 0.12, "cut2": B("b5")["start"] - 0.12, "cut3": B("b7")["start"] - 0.12,
     "cut4": B("b10")["start"] - 0.12, "cut5": B("b12")["start"] - 0.12, "cut6": B("b14")["start"] - 0.12,
-    "ship_in":   wt("b1", "is sailing"),
-    "pirates":   wt("b1", "when pirates"),
-    "cannon":    wt("b1", "when pirates") + 0.35,
-    "grab":      wt("b1", "grab him"),
-    "ransom20":  B("b2")["start"] + 0.2,
-    "capt_caves": B("b3b")["start"] + 0.1,
-    "tiptoe":    B("b6b")["start"],
-    "bb":        B("b9b")["start"],
-    "fanfare":   B("b3")["start"] - 0.05,
-    "gong":      wt("b3", "Do you know who"),
-    "cross20":   wt("b3", "Make it fifty") + 0.05,
-    "price50":   wt("b3", "fifty"),
-    "jawdrop":   wt("b3", "fifty") + 0.35,
-    "chart":     B("b4")["start"],
-    "upwards":   wt("b4", "Upwards"),
-    "days":      B("b5")["start"] + 0.2,
-    "hostage":   wt("b5", "bossiest"),
-    "nap":       B("b6")["start"] + 0.05,
-    "clang":     B("b6")["end"] + 0.15,
-    "games":     wt("b7", "He joined"),
-    "poetry":    wt("b7", "read them"),
-    "snore":     wt("b7", "When they didn"),
-    "barbarians":wt("b7", "illiterate"),
-    "laugh":     B("b9")["start"],
-    "paid":      wt("b10", "The ransom"),
-    "fleet":     wt("b10", "raised a fleet"),
-    "back":      wt("b10", "came straight back"),
-    "caught":    wt("b11", "caught every"),
-    "silver":    wt("b11", "took the silver"),
-    "promise":   wt("b11", "kept his promise"),
-    "serious":   B("b12")["start"],
-    "moral":     B("b13")["start"],
-    "follow":    wt("b14", "Follow"),
-    "subscribe": wt("b14", "subscribe"),
-    "follow_click": wt("b14", "Follow") + 0.55,
-    "sub_click": wt("b14", "subscribe") + 0.65,
-    "threat":    wt("b14", "or I'll"),
-    "fleet2":    wt("b14", "with a fleet"),
-    "end_ding":  B("b14")["end"] + 0.25,
+    "ship_in": PH("b1", 1)[0],
+    "pirates": PH("b1", 2)[0],
+    "cannon": PH("b1", 2)[0] + 0.55,
+    "grab": PH("b1", 3)[0] - 0.1,
+    "ransom20": PH("b2", 1)[0],
+    "fanfare": B("b3")["start"] - 0.05,
+    "gong": PH("b3", 1)[0],
+    "cross20": PH("b3", 2)[0] + 0.05,
+    "price50": wt("b3", "fifty"),
+    "jawdrop": B("b3")["end"] - 0.05,
+    "capt_caves": PH("b3b", 1)[0],
+    "chart": B("b4")["start"],
+    "upwards": PH("b4", 1)[0] + 0.45,
+    "days": B("b5")["start"] + 0.2,
+    "hostage": wt("b5", "most demanding"),
+    "nap": B("b6")["start"] + 0.05,
+    "clang": B("b6")["end"] + 0.15,
+    "tiptoe": B("b6b")["start"],
+    "games": B("b7")["start"], "poetry": PH("b7", 0)[0], "snore": PH("b7", 1)[0], "barbarians": PH("b7", 2)[0] + .12,
+    "threat": PH("b8", 1)[0],
+    "laugh": B("b9")["start"],
+    "bb": B("b9b")["start"],
+    "paid": PH("b10", 1)[0], "fleet": wt("b10", "raised a fleet"), "back": PH("b10", 3)[0],
+    "caught": PH("b11", 0)[0], "silver": PH("b11", 1)[0], "promise": PH("b11", 2)[0],
+    "serious": B("b12")["start"],
+    "moral": B("b13")["start"],
+    "follow": B("b14")["start"], "subscribe": wt("b14", "subscribe"),
+    "follow_click": B("b14")["start"] + 0.55, "sub_click": wt("b14", "subscribe") + 0.55,
+    "cta_threat": PH("b14", 1)[0], "fleet2": wt("b14", "with a fleet"),
+    "end_ding": B("b14")["end"] + 0.25,
 }
 E = {k: round(v, 3) for k, v in E.items()}
+print(json.dumps(E))
 
 # ------------------------------------------------------------------ sfx
 rng = np.random.default_rng(3)

@@ -2,7 +2,7 @@
 
 usage: python3 -I audio.py <timeline.json> <out.wav>
 Every collision the simulation logged becomes a sound (domino clacks, steel ticks, wood thocks, metal clangs, marimba
-notes from the Plinko pegs), rolling noise follows how fast the balls roll, and a small music bed + riser + fanfare
+notes from the Plinko pegs), rolling noise follows how fast the balls roll, and a simple music bed
 sit underneath.  Everything is synthesised with NumPy/SciPy (no samples), so the track is royalty-free.
 """
 import json, sys
@@ -207,14 +207,7 @@ for e in TL["events"]:
     elif n == "snip":
         add(s_snip(), e["t"], e["x"], 0.9)
     elif n == "like":
-        add(s_boom(48, 1.5, 0.45), e["t"], pan=0, gain=1.4)
-
-# HUD pops: soft blips as each step banner appears; hook-title pops at the start
-for s in TL["steps"]:
-    if s["n"] in (11, 12): continue
-    add(s_blip(mid(72 + [0, 0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19][min(s["n"], 12)])), s["f"] / FPS, pan=0, gain=0.22)
-for tp, nn in ((0.02, 64), (0.2, 67), (0.52, 72)):
-    add(s_blip(mid(nn)), tp, pan=0, gain=0.25)
+        add(s_boom(48, 1.2, 0.35), e["t"], pan=0, gain=0.6)
 
 # ---------------------------------------------------------------- rolling rumble (follows ball speed)
 roll = np.array(TL["roll"] + [0.0])
@@ -224,53 +217,25 @@ rum = lp(rng.standard_normal(N), 900) * 0.9 + bp(rng.standard_normal(N), 1500, 4
 roll_sig = rum * (np.clip(env, 0, 1) ** 1.3)
 L += roll_sig * 0.16; R += roll_sig * 0.16
 
-# ---------------------------------------------------------------- music bed (120-ish BPM, C major) + riser + fanfare
+# ---------------------------------------------------------------- music bed: plain bass + arpeggio in C major, one soft chord at the end
 BPM = 124; beat = 60 / BPM
 prog = [(48, [60, 64, 67]), (45, [57, 60, 64]), (53, [60, 65, 69]), (43, [59, 62, 67])]   # C Am F G (bass, triad)
-snip_t = next((e["t"] for e in TL["events"] if e["type"] == "sfx" and e["name"] == "snip"), DUR)
 fin_t = fin_t if fin_t is not None else DUR
-bar = 0; t0 = 0.4
+bar = 0; t0 = 0.3
 pattern = [0, 1, 2, 1, 2, 1, 2, 3]
 while t0 < DUR - 0.3:
     bass, tri = prog[bar % 4]
     for k in range(4):
         tb = t0 + k * beat
-        if tb >= fin_t - 0.02 and tb < fin_t + 0.5: continue
-        if tb < snip_t or tb >= fin_t:
-            if k in (0, 2): add(s_bass(mid(bass) if k == 0 else mid(bass + 7)), tb, pan=0, gain=0.34)
-            add(s_boom(110, 0.16, 0.05), tb, pan=0, gain=0.10) if k in (0, 2) else None
-            add(noise_burst(0.05, 0.012, 6000, 12000), tb + beat / 2, pan=0.15, gain=0.05)
+        if k in (0, 2): add(s_bass(mid(bass) if k == 0 else mid(bass + 7)), tb, pan=0, gain=0.30)
         for h in range(2):
-            ta = tb + h * beat / 2
-            if ta >= snip_t and ta < fin_t: continue
-            if ta >= fin_t - 0.02 and ta < fin_t + 0.45: continue
             ni = pattern[(k * 2 + h) % len(pattern)]
-            note = tri[ni % 3] + 12 * (ni // 3 + (1 if ta >= fin_t else 0))
-            add(s_pluck(mid(note), 0.4, 0.17), ta, pan=-0.25 if h else 0.25, gain=0.17 if ta < fin_t else 0.30)
+            add(s_pluck(mid(tri[ni % 3] + 12 * (ni // 3)), 0.4, 0.17), tb + h * beat / 2, pan=-0.25 if h else 0.25, gain=0.17)
     t0 += 4 * beat; bar += 1
 
-# riser into the anvil impact
-if snip_t < fin_t:
-    rd = fin_t - snip_t - 0.05
-    n = int(rd * SR); tr = tt(n) / rd
-    x = rng.standard_normal(n)
-    out = np.zeros(n); bs = 960
-    for i in range(0, n, bs):
-        fc = 250 * (24 ** tr[min(i, n - 1)]); out[i:i + bs] = bp(x[i:i + bs], fc * 0.7, fc * 1.3, 1)
-    add(out * (tr ** 2.0) * 1.2, snip_t, pan=0, gain=0.55)
-
-# finale: fanfare chord, sparkle arpeggio, confetti pops, then a resolving chord at the end
+# the heart lights: one soft major chord
 for k, m in enumerate((60, 64, 67, 72)):
-    add(s_pluck(mid(m), 1.6, 0.7, 0.5), fin_t, pan=(k - 1.5) * 0.25, gain=0.42)
-for k, m in enumerate((84, 88, 91, 96, 100, 103, 108)):
-    add(s_marimba(mid(m) / 2, 1), fin_t + 0.08 + k * 0.07, pan=(k % 3 - 1) * 0.4, gain=0.34)
-for k, dt in enumerate((0.0, 0.07, 0.15, 0.24)):
-    add(noise_burst(0.12, 0.03, 300, 4000) * 1.2, fin_t + dt, pan=(-0.6, 0.6, -0.3, 0.3)[k], gain=0.5)
-add(bp(rng.standard_normal(int(1.6 * SR)), 5000, 14000) * np.exp(-tt(int(1.6 * SR)) / 0.6), fin_t + 0.05, pan=0, gain=0.10)
-end_t = NF / FPS - 1.9
-for k, m in enumerate((55, 59, 62, 67, 71)):
-    add(s_pluck(mid(m), 1.8, 0.8, 0.45), end_t + k * 0.05, pan=(k - 2) * 0.2, gain=0.22)
-add(s_marimba(mid(96) / 2, 1), end_t + 0.35, pan=0, gain=0.3)
+    add(s_pluck(mid(m), 1.6, 0.7, 0.4), fin_t, pan=(k - 1.5) * 0.2, gain=0.30)
 
 # ---------------------------------------------------------------- master: soft clip, fade, write
 m = np.stack([L, R], 1)

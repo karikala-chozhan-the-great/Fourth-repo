@@ -8,7 +8,7 @@ const probe = process.argv.includes('--probe');
 const M = build();
 const S = M.sim;
 const n = Math.round(secs * FPS);
-const TAIL = 5.4 * FPS;
+const TAIL = 3.2 * FPS;
 const t0 = Date.now();
 for (let f = 0; f < n; f++) {
   S.stepFrame();

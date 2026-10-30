@@ -45,7 +45,7 @@ function build(opts = {}) {
   const c1p = cradle[0].body.getPosition(), c1 = { x: c1p.x, y: c1p.y };   // copy: getPosition() is a live reference
   const claw = S.add({ type: 'visual', x: c1.x, y: c1.y - 1.0, mat: 'metal', style: 'claw', name: 'claw', z: 5,
     fix: [{ box: [0, 0, 0.5, 0.5] }] });
-  const tStart = 0.9;
+  const tStart = 0.5;
   S.at(tStart, s => {
     cradle[0].body.setType('dynamic'); cradle[0].body.setAwake(true);
     s.sound('release', c1.x, c1.y, 1); s.step(1, 'NEWTON\'S CRADLE');
@@ -119,7 +119,7 @@ function build(opts = {}) {
   let fired = false;
   S.every(() => {
     if (!fired && pj.getJointTranslation() > 0.3) {
-      fired = true; S.step(5, 'CATAPULT!', 47.0); S.shake(0.5);
+      fired = true; S.step(5, 'CATAPULT!', 47.0);
       armJ.enableMotor(true); armJ.setMotorSpeed(3.4); armJ.setMaxMotorTorque(8000);
       S.sound('trigger', plateX, plateY, 1);
     }
@@ -184,14 +184,13 @@ function build(opts = {}) {
   const wheel = S.add({ type: 'dynamic', x: wx, y: wy, mat: 'wood', style: 'wheel', name: 'wheel', z: 1, fix: wfix, ad: 0.15 });
   S.joint(pl.RevoluteJoint({ enableMotor: true, motorSpeed: 0, maxMotorTorque: 14 }, ground.body, wheel.body, V(wx, wy)));
   M.wheel = wheel;
-  S.add({ type: 'static', style: 'gear', name: 'gearA', z: -1, deco: { kind: 'gear', r: 1.7, teeth: 12, follow: wheel.id, ratio: -2.0, col: '#ffd23f', phase: 0.2 }, x: 4.0, y: 86.6, fix: [] });
-  S.add({ type: 'static', style: 'gear', name: 'gearB', z: -1, deco: { kind: 'gear', r: 1.05, teeth: 8, follow: wheel.id, ratio: 3.2, col: '#2ee6c5', phase: 0.0 }, x: 6.35, y: 85.2, fix: [] });
 
   // ============================================================ 9. COUNTERWEIGHT (bucket fills, drops 8 m, lifts the counterweight)
   S.add({ type: 'static', style: 'sensor', fix: [{ box: [17.5, 96.8, 2.0, 0.6], sensor: true, tag: 'S9' }] });
   S.trigger('S9', who => S.step(9, 'COUNTERWEIGHT', 98), true, ['pball']);
   plank(S, 3.6, 92.8, 16.3, 95.4, 0.5, { name: 'collector', f: 0.15 });
-  S.add({ type: 'static', mat: 'wood', style: 'post', name: 'collectLip', fix: [{ box: [3.3, 91.9, 0.25, 1.1] }] });
+  plank(S, 0.4, 91.9, 3.6, 92.8, 0.5, { name: 'collectorIn', f: 0.15 });          // closes the gap to the left column: nothing can fall past the collector
+  S.add({ type: 'static', mat: 'metal', style: 'post', name: 'bucketShaft', fix: [{ box: [16.05, 102.5, 0.2, 7.0] }] });   // guide wall beside the bucket's travel
   const b2x = 18.7, b2y = 98.0;
   const bucket2 = S.add({ type: 'dynamic', x: b2x, y: b2y, mat: 'teal', style: 'bucket', name: 'bucket2', z: 2, ld: 0.9, fixedRot: true,
     fix: [{ box: [0, 1.15, 2.1, 0.14], d: 2.4, f: 0.4 }, { box: [-2.0, 0, 0.14, 1.25], d: 2.4, f: 0.3 }, { box: [2.0, 0, 0.14, 1.25], d: 2.4, f: 0.3 }] });
@@ -230,7 +229,7 @@ function build(opts = {}) {
     sciss.body.setTransform(V(anvX, anvTop + 1.2), snipped ? 0 : k);
     if (!snipped && cwJ.getJointTranslation() < (cwTop - cwBot) + 0.12) {
       snipped = true; sciss.body.setTransform(V(anvX, anvTop + 1.2), 0); S.world.destroyJoint(ropeJ); ropeLink.to = S.f + 1; ropeLink.cutAt = S.f; ropeLink.cut = true;
-      S.step(10, 'SNIP!', 108); S.sound('snip', anvX, anvTop + 1.2, 1); S.shake(0.3); S.punch(0.6);
+      S.step(10, 'SNIP!', 108); S.sound('snip', anvX, anvTop + 1.2, 1);
     }
   });
 
@@ -247,28 +246,26 @@ function build(opts = {}) {
   M.btn = btn; M.btnJ = bj;
   let pressed = false;
   S.every(() => {
-    if (!pressed && bj.getJointTranslation() > 0.5) {
+    if (!pressed && snipped && bj.getJointTranslation() > 0.5) {
       pressed = true; M.pressedAt = S.f;
-      S.step(12, 'LIKE!', 112); S.sound('like', btnX, btnY, 1); S.shake(1); S.punch(1);
+      S.step(12, 'LIKE!', 112); S.sound('like', btnX, btnY, 1);
       S.events.push({ t: S.vt(), type: 'finale', x: btnX, y: btnY });
     }
   });
 
   for (const p of M.pulleys) S.add({ type: 'static', style: 'pulleydeco', name: 'pulley', z: 1, deco: { kind: 'wheel', r: p.r }, x: p.x, y: p.y, fix: [] });
-  S.add({ type: 'static', style: 'gear', name: 'bigGear', z: -1, deco: { kind: 'gear', r: 1.9, teeth: 14, follow: M.wheel.id, ratio: -0.8, col: '#ff4f8b', phase: 0.0 }, x: 19.4, y: 88.4, fix: [] });
 
   // ------------------------------------------------------------ camera: one framing per step, follows the anvil on its way down
   const CAMY = { 0: 19.2, 1: 19.2, 2: 21, 3: 26, 4: 32, 5: 40.5, 6: 52, 7: 68, 8: 83, 9: 99, 10: 103, 11: 110, 12: 108 };
-  S.camState.ts = 0.94;
+  S.camState.ts = 1;
   // slow-mo on the big hits, time-lapse through the long rolls (sim seconds -> playback rate, multiples of 0.25)
-  const RATE = [[0, 1], [1.45, 0.5], [2.35, 1.5], [5.0, 0.75], [7.45, 1.75], [9.0, 1], [11.3, 0.5], [12.4, 1], [16.5, 1.25], [21.8, 1.5], [26.5, 1], [27.45, 0.25], [28.1, 1]];
+  const RATE = [[0, 1], [1.05, 0.5], [1.95, 1.5], [4.6, 0.75], [7.05, 1.75], [8.6, 1], [10.9, 0.5], [12.0, 1], [16.1, 1.25], [21.4, 1.5], [26.1, 1]];
   S.timeScale = t => { let r = 1; for (const [a, v] of RATE) if (t >= a) r = v; return r; };
   S.camFn = (c, sim) => {
     const n = sim.steps.length ? sim.steps[sim.steps.length - 1].n : 0;
-    c.ty = CAMY[n] !== undefined ? CAMY[n] : c.ty; c.ts = n >= 12 ? 0.9 : 1; c.k = 3.2;
+    c.ty = CAMY[n] !== undefined ? CAMY[n] : c.ty; c.ts = 1; c.k = 3.2;
     if (n === 11) { c.ty = Math.min(111, Math.max(104, anvil.body.getPosition().y + 5)); c.k = 6; }
     if (n === 12) c.k = 1.4;
-    if (n === 1) c.ts = 1;
   };
   return M;
 }

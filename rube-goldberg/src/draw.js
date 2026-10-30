@@ -123,19 +123,16 @@ function sphere(r, base, dark, a, mark) {
   const g = ctx.createRadialGradient(-r * 0.35, -r * 0.4, r * 0.1, 0, 0, r * 1.05);
   g.addColorStop(0, '#ffffff'); g.addColorStop(0.25, base); g.addColorStop(1, dark);
   ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fillStyle = g; ctx.fill();
-  if (mark) {            // spinning seam so rolling is readable
-    ctx.save(); ctx.rotate(a); ctx.beginPath(); ctx.arc(0, 0, r * 0.98, -0.45, 0.45); ctx.arc(0, 0, r * 0.35, 0.45, -0.45, true); ctx.closePath();
-    ctx.fillStyle = mark; ctx.fill();
-    ctx.beginPath(); ctx.arc(0, 0, r * 0.98, Math.PI - 0.45, Math.PI + 0.45); ctx.arc(0, 0, r * 0.35, Math.PI + 0.45, Math.PI - 0.45, true); ctx.closePath(); ctx.fill();
-    ctx.restore();
+  if (mark) {            // one small dot that turns with the ball, so rolling is readable
+    ctx.save(); ctx.rotate(a); ctx.beginPath(); ctx.arc(r * 0.58, 0, r * 0.15, 0, Math.PI * 2); ctx.fillStyle = mark; ctx.fill(); ctx.restore();
   }
   ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.lineWidth = 0.1; ctx.strokeStyle = '#1b2547'; ctx.stroke();
   ctx.beginPath(); ctx.arc(-r * 0.38, -r * 0.42, r * 0.17, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,255,255,0.85)'; ctx.fill();
 }
 
 const STYLES = {
-  ball(it, f, x, y, a) { const r = it.shapes[0].r; const h = it.hue === undefined ? 200 : it.hue; sphere(r, hsl(h, 80, 62), hsl(h, 70, 30), a, hsl(h, 85, 78, 0.55)); },
-  cradle(it, f, x, y, a) { sphere(it.shapes[0].r, '#dfe9f7', '#4b5f8c', a, 'rgba(120,150,200,0.45)'); },
+  ball(it, f, x, y, a) { const r = it.shapes[0].r; const h = it.hue === undefined ? 200 : it.hue; sphere(r, hsl(h, 80, 62), hsl(h, 70, 30), a, hsl(h, 70, 24, 0.5)); },
+  cradle(it, f, x, y, a) { sphere(it.shapes[0].r, '#dfe9f7', '#4b5f8c', a, 'rgba(50,70,120,0.4)'); },
   domino(it, f) {
     const sh = it.shapes[0].pts, w = sh[1][0] - sh[0][0], h = sh[2][1] - sh[1][1];
     generic(it, [hsl(it.hue, 85, 58), hsl(it.hue, 70, 20), hsl(it.hue, 90, 80)], 0);
@@ -154,7 +151,6 @@ const STYLES = {
     const y0 = Math.floor(CAM.cy - 30), y1 = Math.ceil(CAM.cy + 30);
     for (let yy = y0 - (y0 % 3); yy < y1; yy += 3) {
       ctx.fillStyle = '#6f7dd1'; ctx.beginPath(); ctx.arc(left ? x1 - 0.55 : x0 + 0.55, yy, 0.12, 0, 7); ctx.fill();
-      ctx.fillStyle = (Math.round(yy / 3) % 2) ? '#ffd23f' : '#16193d'; ctx.fillRect(left ? x1 - 0.22 : x0, yy + 1.0, 0.22, 0.9);
     }
   },
   beam(it) { generic(it, PAL.metal, 0); const sh = it.shapes[0].pts; for (let x = sh[0][0] + 0.6; x < sh[1][0]; x += 1.2) { ctx.beginPath(); ctx.arc(x, (sh[0][1] + sh[2][1]) / 2, 0.1, 0, 7); ctx.fillStyle = '#26365c'; ctx.fill(); } },
@@ -202,21 +198,4 @@ function drawBackground(T) {
   for (let y = oy - gs; y < SH + gs; y += gs) { ctx.moveTo(0, y); ctx.lineTo(SW, y); }
   for (let x = 0; x < SW + gs; x += gs) { ctx.moveTo(x, 0); ctx.lineTo(x, SH); }
   ctx.stroke();
-  // big slow gears
-  for (let i = 0; i < 40; i++) {
-    const wx = rnd(i) * 22, wy = i * 6 + rnd(i + 50) * 4, r = 2 + rnd(i + 9) * 3.2;
-    const sx = SW / 2 + (wx - 10.8) * S, sy = SH / 2 + (wy - cy) * S;
-    if (sy < -r * S * 1.4 || sy > SH + r * S * 1.4) continue;
-    const dir = i % 2 ? 1 : -1;
-    gear(sx, sy, r * S, Math.round(r * 3.2) + 6, T * 0.25 * dir + i, 'rgba(120,130,255,0.09)');
-  }
-}
-function gear(x, y, r, teeth, rot, col) {
-  ctx.save(); ctx.translate(x, y); ctx.rotate(rot); ctx.fillStyle = col; ctx.beginPath();
-  for (let i = 0; i < teeth * 2; i++) {
-    const a0 = (i / (teeth * 2)) * Math.PI * 2, a1 = ((i + 1) / (teeth * 2)) * Math.PI * 2, rr = i % 2 ? r : r * 0.86;
-    ctx.lineTo(Math.cos(a0) * rr, Math.sin(a0) * rr); ctx.lineTo(Math.cos(a1) * rr, Math.sin(a1) * rr);
-  }
-  ctx.closePath(); ctx.fill();
-  ctx.globalCompositeOperation = 'destination-out'; ctx.beginPath(); ctx.arc(0, 0, r * 0.55, 0, 7); ctx.fill(); ctx.restore();
 }

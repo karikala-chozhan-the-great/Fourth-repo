@@ -2,9 +2,15 @@
 // ---------------------------------------------------------------------------
 // engine: hand-drawn canvas primitives, stickman rig, caricature heads, props
 // ---------------------------------------------------------------------------
-const W = 1920, H = 1080, FPS = 30;
+const W = 1920, H = 1080, FPS = 30;           // world size (design space)
+const PORTRAIT = /portrait/.test(location.search);   // 9:16 reels/shorts layout
+const CW = PORTRAIT ? 1080 : 1920, CH = PORTRAIT ? 1920 : 1080;   // canvas size
+const BOT = PORTRAIT ? 2400 : H;                      // how far seas / decks extend below the world
+const hp = (x, y) => PORTRAIT ? { x: 540 + (x - 960) * .56, y: 160 + y * 1.1 } : { x, y };   // design-space HUD position -> canvas
+const trh = (x, y) => { const q = hp(x, y); ctx.translate(q.x, q.y); };
 const INK = '#1c1b22', SKIN = '#ffe6c9', PAPER = '#fbf5e6';
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+cv.width = CW; cv.height = CH; cv.style.width = CW + 'px'; cv.style.height = CH + 'px';
 let TL = null, E = {}, NOW = 0, BF = 0, JC = 0, SCR_DX = 0;
 
 const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
@@ -54,14 +60,15 @@ const talking = (id, t) => { const b = beat(id); return t >= b.start - .05 && t 
 // ------------------------------------------------------------------ speech + thought bubbles
 function bubble(txt, cx, cy, ax, ay, t0, t1, o = {}) {
   if (NOW < t0 || NOW > t1 + .2) return;
-  const tp = w2s(ax, ay); ax = clamp(tp.x, 40, W - 40); ay = clamp(tp.y, 40, H - 40);
+  const tp = w2s(ax, ay); ax = clamp(tp.x, 40, CW - 40); ay = clamp(tp.y, 40, CH - 40);
   const pin = eBack(P(NOW, t0, t0 + .22)), pout = 1 - P(NOW, t1, t1 + .18);
   const sc = Math.min(pin, pout); if (sc <= 0) return;
-  const size = o.size || 50, maxW = o.maxW || 560, font = `${size}px ${FONT.hand}`;
+  const size = o.size || 50, maxW = PORTRAIT ? Math.min(o.maxW || 560, 640) : (o.maxW || 560), font = `${size}px ${FONT.hand}`;
   ctx.save(); ctx.setTransform(1, 0, 0, 1, SCR_DX, 0);
   const lines = wrap(txt, maxW, font); ctx.font = font;
   const tw = Math.max(...lines.map(l => ctx.measureText(l).width)), lh = size * 1.12;
   const bw = tw + 64, bh = lines.length * lh + 46;
+  { const q = hp(cx, cy); cx = q.x; cy = q.y; if (PORTRAIT) cx = clamp(cx, bw / 2 + 24, CW - bw / 2 - 24); }
   ctx.translate(cx, cy); ctx.scale(sc, sc);
   const dx = ax - cx, dy = ay - cy;
   const bx = clamp(dx, -bw / 2 + 40, bw / 2 - 40) * .6, by = dy > 0 ? bh / 2 - 6 : -bh / 2 + 6;

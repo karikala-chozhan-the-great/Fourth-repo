@@ -12,7 +12,9 @@ The video closes with Julius breaking the fourth wall to ask viewers to follow a
 
 Dialogue is paraphrased for comedy, and the Blackbeard cameo (born c. 1680) is a deliberate anachronism.
 
-**Output:** `caesar-pirates-video.mp4` — 1920×1080, 30 fps, ~66 s, H.264 + AAC.
+**Output:**
+- `caesar-pirates-reel-9x16.mp4` — **portrait 1080×1920** for Instagram Reels / YouTube Shorts / TikTok (~66 s)
+- `caesar-pirates-video.mp4` — 1920×1080, 30 fps, ~66 s, H.264 + AAC.
 
 ## Cast (stickman bodies, caricature heads)
 Julius Caesar (laurel wreath, toga, deadpan) · the pirate captain (eyepatch, bandana) · bald handlebar-moustache pirate ·
@@ -30,12 +32,16 @@ skull-bandana pirate · Blackbeard (smoking beard, from the wrong century)
 
 Every phrase has an exact start time (`timeline.json`), so camera moves, sound effects and gags land on the right words, and picture stays in sync when the script changes.
 
+## Portrait (9:16) version
+The same code renders either format: open `index.html?portrait=1` (the renderer takes a `portrait` argument). Portrait mode is a re-composition, not a crop: skies, seas and decks are extended vertically, the camera is re-framed for a tall view (tighter on the cast, with the action in the middle band), the cast is pulled closer together, on-screen graphics are re-laid-out, and captions sit in the phone-safe zone above the platforms' bottom UI.
+
 ## Rebuild
 ```bash
 pip install kokoro-onnx soundfile scipy
 # put kokoro-v1.0.onnx and voices-v1.0.bin (kokoro-onnx release "model-files-v1.0") in ./models
 python3 src/audio.py models build
-node src/render.js build/timeline.json build/frames 0 1979 4     # needs: npm i playwright
+node src/render.js build/timeline.json build/frames 0 1979 4                      # landscape; needs: npm i playwright
+node src/render.js build/timeline.json build/frames_portrait 0 1979 4 1 portrait   # 9:16
 ffmpeg -framerate 30 -i build/frames/f%05d.png -i build/audio.wav \
   -af "loudnorm=I=-16:TP=-1.5:LRA=11,aformat=sample_rates=48000:channel_layouts=stereo" \
   -c:v libx264 -preset slow -crf 16 -pix_fmt yuv420p -c:a aac -b:a 192k -shortest -movflags +faststart out.mp4

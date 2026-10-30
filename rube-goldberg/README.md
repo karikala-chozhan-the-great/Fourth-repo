@@ -1,15 +1,15 @@
-# A 2D Rube Goldberg machine for Reels / Shorts
+# A 2D Rube Goldberg machine for Reels / Shorts / YouTube
 
-A 29-second, **real-physics** Rube Goldberg machine built for vertical video. A claw lets go of one steel ball and it sets off twelve
-chained mechanisms; the last one drops an anvil on a big button that lights a heart. Clean and minimal: **no text, no overlays,
-no effects** — just the machine and its sound. Nothing is keyframed: every ball, domino, pulley and bucket is simulated,
-and the video is whatever the physics did.
+**Real-physics** Rube Goldberg machines in three lengths. A claw lets go of one steel ball and it sets off a chain of mechanisms; the last
+one drops an anvil on a big button that lights a heart. Clean and minimal: **no text, no overlays, no effects** — just the machine and its
+sound. Nothing is keyframed: every ball, domino, pulley and bucket is simulated, and the video is whatever the physics did.
 
-**Output** (two cuts of the same machine)
-- `rube-goldberg-reel-60s-9x16.mp4` — **the one-minute version: 1080×1920, 30 fps, 59 s**, 18 steps (see below)
-- `rube-goldberg-reel-9x16.mp4` — the short version: 29 s, 12 steps
-- `thumbnail_9x16.png` — cover frame of the short version (the lit heart); `thumbnail_60s_9x16.png` — cover for the one-minute cut
-- both are H.264 + AAC at about -14 LUFS, ready for Instagram Reels, YouTube Shorts and TikTok
+**Output** (three cuts)
+- `rube-goldberg-3min-16x9.mp4` — **the three-minute landscape version for YouTube: 1920×1080, 30 fps, 2:50**, 29 steps (see below)
+- `rube-goldberg-reel-60s-9x16.mp4` — the one-minute vertical version: 1080×1920, 59 s, 18 steps
+- `rube-goldberg-reel-9x16.mp4` — the short vertical version: 29 s, 12 steps
+- `thumbnail_3min_16x9.png` — cover frame of the long cut (the lit heart); `thumbnail_9x16.png` / `thumbnail_60s_9x16.png` — covers for the vertical cuts
+- all are H.264 + AAC at about -14 LUFS; the vertical ones are ready for Instagram Reels, YouTube Shorts and TikTok
 
 ## The machine (top to bottom)
 | # | Step | What happens |
@@ -51,6 +51,28 @@ Playback is real time, with gentle slow-motion on the cradle hit, both domino ru
 Another tripwire-style link (the third plate closing the scissors) is a scripted trigger like the others; the rest is physics.
 The same 5-release-time stress test as the short cut passes (the chain completes every time, no stray balls).
 
+## The three-minute landscape version (`--wide`)
+A new, much bigger machine rather than a slowed-down one. The world is 48 m wide so a 16:9 camera frames it edge to edge and only scrolls
+down the tower; the proven blocks of the vertical machine are re-used, stretched or mirrored into the left and right halves, and connector
+ramps hand the ball from one half to the other. Real-time playback with slow-motion on the big moments (`RATE` in `src/machine_wide.js`).
+
+| # | Step | What happens |
+|---|---|---|
+| 1–3 | **Cradle, long roll, dominoes** | the claw releases the first ball of a Newton's cradle; the flung ball rolls the full width and topples a 48-domino rainbow run |
+| 4–5 | **Bowling ball, catapult** | the last domino nudges a bowling ball onto a spring-loaded plate that fires a catapult arm |
+| 6–8 | **Teeter-totter, bouncy stairs** | the gold ball rolls across, tips a teeter-totter and hops down six rubber pads |
+| 9–11 | **Pulley gate, two Plinko boards** | it drops into a bucket on a pulley that lifts a gate; 32 balls pour through one peg board, ride a long ramp and fall through a second |
+| 12–13 | **Water wheel, counterweight** | the balls spin a bucket wheel and fill a bucket that drops and lifts a counterweight |
+| 14–15 | **Tripwire, ramps** | the counterweight pulls a pin from under a ball, which takes three ramps back across the machine |
+| 16–18 | **Three more domino runs** | 20, 51 and 48 dominoes; each run's last domino pushes the next ball onto the next run |
+| 19–23 | **Switchbacks** | the last ball takes five long ramps back and forth; two of them are **xylophones**, 16 coloured keys that each play a marimba note as it rolls over |
+| 24–25 | **Pendulum, tower** | a plate releases a wrecking ball that swings into a stack of six blocks |
+| 26–27 | **Final ramp, snip** | the falling blocks knock a ball down a ramp onto a third plate, which closes the scissors on the anvil's rope |
+| 28–29 | **The anvil, the heart** | the anvil falls about 22 m onto the red button and the heart lights up |
+
+As in the other cuts, the plates, the tripwire and the scissors are triggers driven by what the physics did; everything else is straight rigid-body
+simulation. The chain was stress-tested for completion at several release times (the claw's let-go time) with no stray balls.
+
 ## How it was made
 | Stage | Tool |
 |---|---|
@@ -76,5 +98,12 @@ ffmpeg -framerate 30 -i build/frames/f%05d.jpg -i build/audio.wav \
   -c:v libx264 -preset slow -crf 17 -colorspace bt709 -color_primaries bt709 -color_trc bt709 \
   -c:a aac -b:a 192k -shortest -movflags +faststart rube-goldberg-reel-9x16.mp4      # (60 s cut: use --long and name it ...-60s-...)
 ```
-Tweak the machine in `src/machine.js` (positions are metres, y down, 1 m = 50 px) and re-run; to change how long the heart is held at the end, edit `TAIL` in `src/sim.js`.
+The three-minute cut uses `--wide` and more memory for the renderer (the timeline is about 25 MB):
+```bash
+node src/sim.js build/timeline.json --wide                       # src/machine_wide.js: 1920x1080, ~5200 frames
+python3 -I src/audio.py build/timeline.json build/audio.wav
+node --max-old-space-size=8192 src/render.js build/timeline.json build/frames 0 99999 4
+# then the same ffmpeg command, with -framerate 30 and the output named rube-goldberg-3min-16x9.mp4 (two-pass loudnorm gives a cleaner -14 LUFS)
+```
+Tweak the machine in `src/machine.js` (`src/machine_wide.js` for the landscape cut) (positions are metres, y down, 1 m = 50 px) and re-run; to change how long the heart is held at the end, edit `TAIL` in `src/sim.js`.
 Fonts in `fonts/` (Bangers, Comic Neue) are SIL OFL.

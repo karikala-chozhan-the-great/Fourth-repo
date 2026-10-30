@@ -19,6 +19,7 @@ N = int(DUR * SR)
 L = np.zeros(N); R = np.zeros(N)
 rng = np.random.default_rng(7)
 items = {it["id"]: it for it in TL["items"]}
+PANW = 21.6 if TL.get("W", 22.4) < 30 else TL["W"]          # world width used for panning (the landscape cut is 48 m wide)
 tt = lambda n: np.arange(n) / SR
 
 
@@ -27,7 +28,7 @@ def add(sig, t, x=None, gain=1.0, pan=None):
     i = int(t * SR)
     if i >= N or i < 0: return
     sig = sig[: N - i] * gain
-    p = pan if pan is not None else (0.0 if x is None else (x / 21.6 * 2 - 1) * 0.5)
+    p = pan if pan is not None else (0.0 if x is None else (x / PANW * 2 - 1) * 0.5)
     gl, gr = np.sqrt((1 - p) / 2), np.sqrt((1 + p) / 2)
     L[i:i + len(sig)] += sig * gl; R[i:i + len(sig)] += sig * gr
 
@@ -161,7 +162,8 @@ for k, e in enumerate(ev):
     small = ka == "pball" or kb == "pball"
     if "peg" in names:
         peg = e["a"] if ka == "peg" else e["b"]
-        idx = int(np.clip((x - 3.4) / 15.2, 0, 0.999) * len(PENT))
+        xr = x - 26.4 if (x > 24 and PANW > 30) else x             # landscape cut: board #1 sits in the right half
+        idx = int(np.clip((xr - 3.4) / 15.2, 0, 0.999) * len(PENT))
         f = mid(PENT[idx]) * (2 if rng.random() < 0.15 else 1)
         if v < 2.0 and rng.random() < 0.45: continue
         add(s_marimba(f, v), t, x, 0.17 * max(0.35, g))
@@ -181,7 +183,7 @@ for k, e in enumerate(ev):
         add(s_clack(v, big=True), t, x, 0.5 * max(0.4, g))
     elif names & {"gate", "plate", "plate3", "plate4", "btn", "cw", "arm", "scissors", "pin"}:
         add(s_thock(v, 150), t, x, 0.7 * max(0.4, g))
-    elif names & {"T", "B", "L", "G", "J", "K"}:
+    elif names & {"T", "B", "L", "G", "J", "K", "H", "H2"}:
         mats = {e.get("ma"), e.get("mb")}
         if "metal" in mats or names & {"colL", "colR", "tpost", "baffle", "pivot", "stopL", "stopR", "plateBase", "btnBase", "bucketStop", "hopperL", "hopperR"}:
             add(s_clang(v), t, x, 0.55 * max(0.35, g))
@@ -208,6 +210,8 @@ for e in TL["events"]:
     elif n == "trigger":
         add(s_thock(10, 120), e["t"], e["x"], 1.0); add(s_boing(), e["t"] + 0.02, e["x"], 0.6)
         add(s_whoosh(0.5, 150, 5500, True), e["t"] + 0.05, 5.0, 0.55)
+    elif n == "key":                                        # one marimba note per key of the xylophone ramps
+        i = int(e["i"]); add(s_marimba(mid(55 + [0, 2, 4, 7, 9][i % 5] + 12 * (i // 5)), 6.0), e["t"], e["x"], 0.14 + 0.14 * e["v"])
     elif n == "snip":
         add(s_snip(), e["t"], e["x"], 0.9)
     elif n == "like":
@@ -224,17 +228,23 @@ L += roll_sig * 0.16; R += roll_sig * 0.16
 # ---------------------------------------------------------------- music bed: plain bass + arpeggio in C major, one soft chord at the end
 BPM = 124; beat = 60 / BPM
 prog = [(48, [60, 64, 67]), (45, [57, 60, 64]), (53, [60, 65, 69]), (43, [59, 62, 67])]   # C Am F G (bass, triad)
+# the long cuts change harmony every 8 bars so the bed does not loop: C Am F G -> F G Em Am -> Am F C G (arpeggio an octave up)
+sections = [prog,
+            [(41, [60, 65, 69]), (43, [59, 62, 67]), (40, [59, 64, 67]), (45, [57, 60, 64])],
+            [(45, [57, 60, 64]), (41, [60, 65, 69]), (48, [60, 64, 67]), (43, [59, 62, 67])]]
 fin_t = fin_t if fin_t is not None else DUR
 bar = 0; t0 = 0.3
 pattern = [0, 1, 2, 1, 2, 1, 2, 3]
 while t0 < DUR - 0.3:
-    bass, tri = prog[bar % 4]
+    sec = (bar // 8) % 3 if DUR > 100 else 0
+    bass, tri = sections[sec][bar % 4]
+    up = 12 if sec == 2 else 0
     for k in range(4):
         tb = t0 + k * beat
         if k in (0, 2): add(s_bass(mid(bass) if k == 0 else mid(bass + 7)), tb, pan=0, gain=0.30)
         for h in range(2):
             ni = pattern[(k * 2 + h) % len(pattern)]
-            add(s_pluck(mid(tri[ni % 3] + 12 * (ni // 3)), 0.4, 0.17), tb + h * beat / 2, pan=-0.25 if h else 0.25, gain=0.17)
+            add(s_pluck(mid(tri[ni % 3] + 12 * (ni // 3) + up), 0.4, 0.17), tb + h * beat / 2, pan=-0.25 if h else 0.25, gain=0.17)
     t0 += 4 * beat; bar += 1
 
 # the heart lights: one soft major chord

@@ -10,7 +10,7 @@ fs.mkdirSync(outDir, { recursive: true });
   const frames = []; for (let f = start; f <= end; f += st) frames.push(f);
   let next = 0, done = 0;
   const worker = async () => {
-    const page = await browser.newPage({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1 });
+    const page = await browser.newPage({ viewport: { width: tl.vw || 1080, height: tl.vh || 1920 }, deviceScaleFactor: 1 });
     page.on('pageerror', e => { console.error('PAGEERROR', e.message); process.exit(1); });
     page.on('console', m => { if (m.type() === 'error') console.error('CONSOLE', m.text()); });
     await page.goto('file://' + path.resolve(__dirname, 'index.html'));

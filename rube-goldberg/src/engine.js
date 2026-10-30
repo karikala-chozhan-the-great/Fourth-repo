@@ -8,7 +8,8 @@ const FPS = 30, SUB = 120, PPM = 50, W = 21.6;      // world is 21.6 m wide  -> 
 const r3 = v => Math.round(v * 1000) / 1000;
 
 class Sim {
-  constructor(gravity = 26) {
+  constructor(gravity = 26, view = { w: 1080, h: 1920 }, worldW = W) {
+    this.view = view; this.worldW = worldW; this.ox = 0; this.oy = 0;     // ox/oy: origin offset applied to everything added next
     this.world = new pl.World({ gravity: V(0, gravity) });
     this.items = [];           // render + audio metadata for every body
     this.links = [];           // ropes / rods / springs (drawn only)
@@ -19,7 +20,7 @@ class Sim {
     this.roll = [];            // per-frame rolling-noise level (0..1) for the audio mix
     this.f = 0; this.t = 0; this.subIdx = 0; this.subsPerFrame = 4;
     this.timers = []; this.triggers = new Map(); this.pending = [];
-    this.camState = { cx: W / 2, cy: 19.2, s: 1, ty: 19.2, ts: 1, k: 3.2, trauma: 0, punch: 0 };
+    this.camState = { cx: worldW / 2, cy: 19.2, s: 1, ty: 19.2, ts: 1, k: 3.2, trauma: 0, punch: 0 };
     this.camFn = null;
     this.timeScale = () => 1;
     this.flags = {};
@@ -32,13 +33,13 @@ class Sim {
   add(def) {
     const type = def.type || 'static';
     const body = this.world.createBody({
-      type: type === 'visual' ? 'kinematic' : type, position: V(def.x || 0, def.y || 0), angle: def.a || 0,
+      type: type === 'visual' ? 'kinematic' : type, position: V((def.x || 0) + this.ox, (def.y || 0) + this.oy), angle: def.a || 0,
       bullet: !!def.bullet, linearDamping: def.ld || 0, angularDamping: def.ad || 0, fixedRotation: !!def.fixedRot,
       allowSleep: def.sleep !== undefined ? def.sleep : false,
     });
     const item = {
       id: this.items.length, body, type: def.rec ? 'dynamic' : type, mat: def.mat || 'wood', style: def.style || '', name: def.name || '',
-      hue: def.hue, hero: !!def.hero, shapes: [], x: def.x || 0, y: def.y || 0, a: def.a || 0, z: def.z || 0, deco: def.deco,
+      hue: def.hue, hero: !!def.hero, shapes: [], x: (def.x || 0) + this.ox, y: (def.y || 0) + this.oy, a: def.a || 0, z: def.z || 0, deco: def.deco,
     };
     body.setUserData(item);
     for (const fx of def.fix || []) this._fixture(item, body, fx, type === 'visual');
@@ -73,7 +74,7 @@ class Sim {
   // pts: [{i:item|null, x, y}] polyline; i given -> local to that item, else world.
   link(def) {
     const l = { id: this.links.length, kind: def.kind || 'rope', w: def.w || 0.1, col: def.col, from: def.from || 0, to: def.to === undefined ? 1e9 : def.to,
-      cut: !!def.cut, pts: def.pts.map(p => ({ i: p.i ? p.i.id : -1, x: p.x, y: p.y })), n: def.n, z: def.z || 0 };
+      cut: !!def.cut, pts: def.pts.map(p => ({ i: p.i ? p.i.id : -1, x: p.i ? p.x : p.x + this.ox, y: p.i ? p.y : p.y + this.oy })), n: def.n, z: def.z || 0 };
     this.links.push(l); return l;
   }
 
@@ -170,13 +171,16 @@ class Sim {
     this.frames.push(fr);
   }
 
+  Vo(x, y) { return V(x + this.ox, y + this.oy); }          // a point in the current block's coordinates, as a world Vec2
+  setOrigin(x, y) { this.ox = x; this.oy = y; }
+
   // item helpers ------------------------------------------------------
   pos(it) { const p = it.body.getPosition(); return [p.x, p.y]; }
   speed(it) { const v = it.body.getLinearVelocity(); return Math.hypot(v.x, v.y); }
 
   export() {
     return {
-      fps: FPS, ppm: PPM, W,
+      fps: FPS, ppm: PPM, W: this.worldW, vw: this.view.w, vh: this.view.h,
       items: this.items.map(it => ({ id: it.id, type: it.type, mat: it.mat, style: it.style, name: it.name, hue: it.hue, hero: it.hero, z: it.z,
         x: r3(it.x), y: r3(it.y), a: r3(it.a), shapes: it.shapes, deco: it.deco })),
       dyn: this.items.filter(i => i.type !== 'static').map(i => i.id),

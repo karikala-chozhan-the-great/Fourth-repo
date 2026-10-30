@@ -370,4 +370,4 @@ function build(opts = {}) {
   return M;
 }
 
-module.exports = { build, plank };
+module.exports = { build, plank, seg, rad };

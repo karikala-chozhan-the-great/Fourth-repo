@@ -1,5 +1,6 @@
 // Canvas 2D renderer: drawFrame(f) paints one 1080x1920 frame from the recorded timeline.  World units are metres (1 m = 50 px).
-const PPM = 50, SW = 1080, SH = 1920;
+const PPM = 50;
+let SW = 1080, SH = 1920;
 let TL, cv, ctx, byId = [], dynPos = [], FPS = 30;
 const PAL = {
   wood: ['#f2b56b', '#5b3416', '#ffd9a0'], metal: ['#a9bde0', '#26365c', '#e4eeff'], steel: ['#e7eef8', '#26365c', '#ffffff'],
@@ -11,7 +12,8 @@ const hsl = (h, s, l, a = 1) => `hsla(${h},${s}%,${l}%,${a})`;
 const rnd = (i) => { const x = Math.sin(i * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
 
 function init(tl) {
-  TL = tl; FPS = tl.fps; cv = document.getElementById('c'); ctx = cv.getContext('2d');
+  TL = tl; FPS = tl.fps; SW = tl.vw || 1080; SH = tl.vh || 1920;
+  cv = document.getElementById('c'); cv.width = SW; cv.height = SH; ctx = cv.getContext('2d');
   TL.items.forEach(it => { byId[it.id] = it; });
   TL.dyn.forEach((id, k) => { dynPos[id] = k; });
   for (const it of TL.items) {

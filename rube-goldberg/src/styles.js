@@ -98,6 +98,7 @@ Object.assign(STYLES, {
     ctx.beginPath(); ctx.arc(0, 0, r * 0.4, 0, 7); ctx.fillStyle = '#26365c'; ctx.fill();
   },
   bar(it) { generic(it, PAL.metal, 0); },
+  pad(it) { generic(it, [hsl(it.hue, 80, 62), hsl(it.hue, 70, 24), hsl(it.hue, 90, 84)], 0); },
   block(it) { generic(it, [hsl(it.hue, 62, 62), hsl(it.hue, 55, 24), hsl(it.hue, 75, 82)], 0); },
   arm(it) {
     shapePath(it); ctx.fillStyle = '#f2b56b'; ctx.fill(); ctx.lineWidth = 0.1; ctx.lineJoin = 'round'; ctx.strokeStyle = '#5b3416'; ctx.stroke();

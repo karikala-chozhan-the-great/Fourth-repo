@@ -42,10 +42,12 @@ BEATS = [
          text="He caught every last pirate, took the silver back with interest, and kept his promise."),
     dict(id="b12", who="captain", voice="am_onyx",   speed=1.0,  gap=0.40, lang="en-us",
          text="Wait... he was serious?!"),
-    dict(id="b13", who="narr",    voice="bf_emma",   speed=1.04, gap=0.0,  lang="en-gb",
+    dict(id="b13", who="narr",    voice="bf_emma",   speed=1.04, gap=0.35, lang="en-gb",
          text="Moral: if you kidnap a Roman, never undercharge."),
+    dict(id="b14", who="caesar",  voice="bm_george", speed=1.02, gap=0.0,  lang="en-gb",
+         text="Follow and subscribe, or I'll come back with a fleet."),
 ]
-LEAD_IN, TAIL = 0.8, 2.4
+LEAD_IN, TAIL = 0.8, 2.0
 
 kokoro = Kokoro(f"{MODELS}/kokoro-v1.0.onnx", f"{MODELS}/voices-v1.0.bin")
 def letters(s): return sum(c.isalpha() for c in s)
@@ -108,7 +110,7 @@ def wt(bid, phrase):
 E = {
     "title_slam": 0.10,
     "cut1": B("b2")["start"] - 0.12, "cut2": B("b5")["start"] - 0.12, "cut3": B("b7")["start"] - 0.12,
-    "cut4": B("b10")["start"] - 0.12, "cut5": B("b12")["start"] - 0.12,
+    "cut4": B("b10")["start"] - 0.12, "cut5": B("b12")["start"] - 0.12, "cut6": B("b14")["start"] - 0.12,
     "ship_in":   wt("b1", "is sailing"),
     "pirates":   wt("b1", "when pirates"),
     "cannon":    wt("b1", "when pirates") + 0.35,
@@ -141,7 +143,13 @@ E = {
     "promise":   wt("b11", "kept his promise"),
     "serious":   B("b12")["start"],
     "moral":     B("b13")["start"],
-    "end_ding":  B("b13")["end"] + 0.15,
+    "follow":    wt("b14", "Follow"),
+    "subscribe": wt("b14", "subscribe"),
+    "follow_click": wt("b14", "Follow") + 0.55,
+    "sub_click": wt("b14", "subscribe") + 0.65,
+    "threat":    wt("b14", "or I'll"),
+    "fleet2":    wt("b14", "with a fleet"),
+    "end_ding":  B("b14")["end"] + 0.25,
 }
 E = {k: round(v, 3) for k, v in E.items()}
 
@@ -200,6 +208,10 @@ def sfx_scribble(d=0.8):
     t = tt(d); return bp(rng.standard_normal(len(t)), 2500, 7000) * (np.sin(2*np.pi*9*t) > -.3) * .3 * np.minimum(1, (d-t)/.1)
 def sfx_thud():
     t = tt(0.3); return np.sin(2*np.pi*(70*np.exp(-8*t)+40)*t) * np.exp(-11*t) * .9
+def sfx_click():
+    t = tt(0.12); return (np.sin(2*np.pi*1800*t) * np.exp(-60*t) + bp(rng.standard_normal(len(t)), 2000, 9000) * np.exp(-90*t)) * .6
+def sfx_bell(d=1.8):
+    t = tt(d); return sum(np.sin(2*np.pi*f*t) * a for f, a in [(1320, 1), (1980, .55), (2640, .35), (3960, .2)]) * np.exp(-2.6*t) * (1 + .25*np.sin(2*np.pi*9*t)) * .35
 def sfx_horn(d=1.6):
     t = tt(d); y = sum(saw(f, d) for f in (233, 233.6, 349.5)) / 3 * np.minimum(1, t/.05) * np.exp(-1.2*np.maximum(0, t-.5)); return lp(y, 2200) * .32
 
@@ -207,7 +219,7 @@ sfx = np.zeros(N, np.float32)
 def put(at, snd, g=1.0):
     i = int(at * SR)
     if 0 <= i < N: seg = (snd * g).astype(np.float32); sfx[i:i+len(seg)] += seg[:N-i]
-for c in ("cut1", "cut2", "cut3", "cut4", "cut5"): put(E[c] - 0.2, sfx_whoosh(0.5), .5)
+for c in ("cut1", "cut2", "cut3", "cut4", "cut5", "cut6"): put(E[c] - 0.2, sfx_whoosh(0.5), .5)
 put(E["title_slam"], sfx_thud(), 1.2); put(E["title_slam"] + .02, sfx_pop(), .6)
 put(E["ship_in"], sfx_horn(), .8)
 put(E["cannon"], sfx_boom(), 1.0); put(E["cannon"] + .5, sfx_splash(), .7); put(E["grab"], sfx_pop(), .8)
@@ -222,6 +234,9 @@ put(E["poetry"], sfx_pop(), .6); put(E["snore"], sfx_snore(2.4), .8); put(E["bar
 put(E["paid"], sfx_coin(12), .9); put(E["fleet"], sfx_fanfare(), .8); put(E["back"], sfx_horn(1.2), .6)
 put(E["caught"], sfx_splash(), .8); put(E["silver"], sfx_coin(10), .9); put(E["promise"], sfx_cell(), 1.0)
 put(E["serious"], sfx_sting(), 1.0); put(E["moral"] - 0.05, sfx_pop(), .8)
+put(E["follow"], sfx_pop(), .7); put(E["follow_click"], sfx_click(), 1.0); put(E["follow_click"] + .05, sfx_ding(), .5)
+put(E["subscribe"], sfx_pop(), .7); put(E["sub_click"], sfx_click(), 1.0); put(E["sub_click"] + .12, sfx_bell(), .9)
+put(E["fleet2"], sfx_fanfare(), .7)
 put(E["end_ding"], sfx_ding(), .8)
 
 # ------------------------------------------------------------------ sea ambience

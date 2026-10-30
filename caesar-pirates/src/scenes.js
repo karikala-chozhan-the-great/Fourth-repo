@@ -53,6 +53,7 @@ function deckBG(o) {
   (o.clouds || [[300, 170, 1.4], [1250, 120, 1.1], [1700, 230, 1.2]]).forEach(([x, y, s]) => cloud(((x + t * 8) % (W + 300)) - 150, y, s, o.cloudCol || 'rgba(255,255,255,.85)'));
   if (o.gulls) o.gulls.forEach(([x, y], i) => gull(x + Math.sin(t * .8 + i) * 40, y + Math.sin(t * 1.3 + i * 2) * 14, t + i, 1));
   sea(560, 800, t, o.sea[0], o.sea[1]);
+  if (o.mid) o.mid();
   rail(808); deckFloor(812);
 }
 function barrel(x, y, w = 110, h = 130) {
@@ -408,15 +409,57 @@ function S6(t) {
   tag('JULIUS CAESAR', ['Kept his word.', 'Smugly.'], 470, 320, 52.9, 54.2, { rot: -.03 });
   // moral
   if (moral) { const k = eBack(P(t, E.moral, E.moral + .3)); ctx.save(); ctx.translate(W / 2, 255); ctx.scale(k, k); parch(0, 0, 1480, 210, -.005); text('MORAL', 0, -62, { font: 'title', size: 54, color: '#c0392b' }); text('If you kidnap a Roman, never undercharge.', 0, 20, { font: 'title', size: 92, color: '#3b2a1a' }); ctx.restore(); }
-  if (t >= E.end_ding - .05) { const k = eBack(P(t, E.end_ding - .05, E.end_ding + .3)); ctx.fillStyle = `rgba(10,12,24,${.6 * eOut(P(t, E.end_ding - .05, E.end_ding + .5))})`; ctx.fillRect(0, 0, W, H); coinRain(E.end_ding, 1.4, 50); text('THE END', W / 2, 640, { font: 'roman', size: 170, weight: '900', color: '#f1c453', stroke: INK, sw: 24, sc: k, rot: -.02 }); }
   if (t > E.moral + .9) text("Based on Plutarch's Life of Caesar and Suetonius. Details dramatized for comedy.", W / 2, 1040, { size: 28, color: '#e8dcc0', alpha: .9 * P(t, E.moral + .9, E.moral + 1.4) });
 }
 
+
+// ---- S7: Julius asks you to follow and subscribe (or else)
+function bellShape(x, y, s, ang) {
+  ctx.save(); ctx.translate(x, y - 30 * s); ctx.rotate(ang); ctx.scale(s, s);
+  ctx.beginPath(); ctx.moveTo(-34, 38); ctx.quadraticCurveTo(-34, -2, -22, -18); ctx.quadraticCurveTo(0, -42, 22, -18); ctx.quadraticCurveTo(34, -2, 34, 38); ctx.closePath(); fl('#ffd23f'); stk(5);
+  ln(-40, 40, 40, 40, 7); circ(0, 52, 9, '#ffd23f', 4); circ(0, -34, 6, '#ffd23f', 4); ctx.restore();
+}
+function cursorArrow(x, y, press) { ctx.save(); ctx.translate(x, y); ctx.scale(1 - press * .12, 1 - press * .12); poly([[0, 0], [0, 46], [12, 35], [21, 54], [30, 50], [21, 32], [36, 32]], '#fff', 4); ctx.restore(); }
+function uiButton(cx, cy, label, doneLabel, col, t0, tClick, icon) {
+  if (NOW < t0) return; const k = eBack(P(NOW, t0, t0 + .28)), done = NOW >= tClick, press = NOW >= tClick - .08 && NOW < tClick + .1 ? 1 : 0;
+  ctx.save(); ctx.translate(cx, cy); ctx.scale(k * (press ? .94 : 1) * (1 + (done ? Math.max(0, .08 * Math.sin(P(NOW, tClick, tClick + .35) * 6.28)) : 0)), k * (press ? .94 : 1));
+  rrect(-200 + 6, -55 + 9, 400, 110, 55, 'rgba(10,10,25,.3)', 0);
+  rrect(-200, -55, 400, 110, 55, done ? '#dcdce4' : col, 6);
+  text(done ? doneLabel : label, icon ? 22 : 0, 4, { font: 'head', size: 60, color: done ? '#4a4a58' : '#fff', spacing: 2 });
+  if (icon && !done) { ctx.beginPath(); ctx.arc(-120, 0, 24, 0, 7); stk(5, '#fff'); ln(-120, -13, -120, 13, 6, '#fff'); ln(-133, 0, -107, 0, 6, '#fff'); }
+  ctx.restore();
+}
+function S7(t) {
+  const fleetIn = eOut(P(t, E.threat, E.threat + 1.3));
+  deckBG({ sky: ['#ff8a5c', '#ffd9a0'], sea: ['#d4676a', '#4b2c5e'], sun: [1000, 590, 130, '#ffb347'], clouds: [[300, 150, 1.4], [1500, 220, 1.2], [800, 330, 1.0]], cloudCol: 'rgba(255,200,170,.75)',
+    mid: () => { if (t > E.threat - .1) [0, 1, 2, 3].forEach(i => romanShip(lerp(-460, 120 + i * 300, fleetIn), 655 + (i % 2) * 36, .3 + (i % 2) * .03, t, i)); } });
+  const sm = mouthOf('b14', t), talking = t < beat('b14').end + .1;
+  const c = { kind: 'caesar', x: 520, y: GY, s: 1.35, dir: 1, mouth: sm, ph: 1, expr: 'smug', look: 1, pose: { ra: [1.4 + Math.sin(t * 7) * .06 * (sm > .2 ? 1 : 0), .1], la: [.35, .4], tilt: -.06 + (t >= E.threat ? .08 : 0), lean: t >= E.threat ? .05 : 0 } };
+  figure(c);
+  bubble("Follow and subscribe, or I'll come back with a fleet.", 600, 250, c.hx + 10, c.hy - 80, beat('b14').start, beat('b14').end + .05, { size: 50, maxW: 560 });
+  // follow / subscribe buttons
+  const t1 = E.cut6 + .25, t2 = E.subscribe - .05, bx = 1400;
+  uiButton(bx, 330, '+ FOLLOW', 'FOLLOWING ✓', '#2f6fcf', t1, E.follow_click, true);
+  uiButton(bx - 40, 500, 'SUBSCRIBE', 'SUBSCRIBED ✓', '#e5283f', t2, E.sub_click, false);
+  if (t >= t2) { const ring = t >= E.sub_click ? Math.sin((t - E.sub_click) * 22) * .4 * Math.exp(-(t - E.sub_click) * 1.1) : 0; const k = eBack(P(t, t2 + .1, t2 + .4)); bellShape(bx + 240, 500, 1.1 * k, ring); if (t >= E.sub_click) sparkles(bx + 240, 480, 90, 8, E.sub_click + .1, .9); }
+  // cursor: glides to Follow, clicks, glides to Subscribe, clicks
+  if (t >= t1 + .1) {
+    const a = eIO(P(t, t1 + .1, E.follow_click - .05)), b = eIO(P(t, E.follow_click + .1, E.sub_click - .05)), out = eIO(P(t, E.sub_click + .5, E.sub_click + 1.3));
+    let x = lerp(1750, 1480, a), y = lerp(800, 345, a); x = lerp(x, 1440, b); y = lerp(y, 515, b); x = lerp(x, 1800, out); y = lerp(y, 860, out);
+    const press = (t >= E.follow_click - .06 && t < E.follow_click + .1) || (t >= E.sub_click - .06 && t < E.sub_click + .1) ? 1 : 0;
+    cursorArrow(x, y, press);
+    [E.follow_click, E.sub_click].forEach(tc => { const p = P(t, tc, tc + .4); if (p > 0 && p < 1) circ(tc === E.follow_click ? 1480 : 1440, tc === E.follow_click ? 345 : 515, 20 + p * 70, null, 6 * (1 - p), '#fff'); });
+  }
+  if (t >= E.sub_click + .7) text('Resistance is futile.', bx - 20, 650, { size: 62, color: '#fff', stroke: '#7b2d12', sw: 14, rot: -.03, sc: eBack(P(t, E.sub_click + .7, E.sub_click + 1.0)) });
+  if (t >= E.end_ding - .05) { const k = eBack(P(t, E.end_ding - .05, E.end_ding + .3)); coinRain(E.end_ding, 1.4, 50); text('THE END', W / 2, 150, { font: 'roman', size: 150, weight: '900', color: '#f1c453', stroke: INK, sw: 22, sc: k, rot: -.02 }); }
+  text("Based on Plutarch's Life of Caesar and Suetonius. Details dramatized for comedy.", W / 2, 1042, { size: 28, color: '#fff', stroke: '#4b2c5e', sw: 8, alpha: .9 });
+}
+
 // =========================================================================== frame composer
-const SCENES = [S1, S2, S3, S4, S5, S6], SWAY = [false, true, true, true, false, false];
+const SCENES = [S1, S2, S3, S4, S5, S6, S7], SWAY = [false, true, true, true, false, false, true];
 function drawFrame(f) {
   NOW = f / FPS; BF = Math.floor(NOW * 12); JC = 0;
-  const cuts = [E.cut1, E.cut2, E.cut3, E.cut4, E.cut5], hw = .22;
+  const cuts = [E.cut1, E.cut2, E.cut3, E.cut4, E.cut5, E.cut6], hw = .22;
   let idx = 0; cuts.forEach(c => { if (NOW >= c) idx++; });
   let tr = -1, trIdx = 0; cuts.forEach((c, i) => { if (NOW >= c - hw && NOW < c + hw) { tr = (NOW - (c - hw)) / (2 * hw); trIdx = i; } });
   const drawScene = (i, dx) => {

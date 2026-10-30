@@ -8,9 +8,11 @@ them his poems (and calling them illiterate barbarians when they weren't impress
 have them all crucified. They thought he was joking. After the ransom was paid he raised a fleet, came back, caught
 them, recovered the silver and did exactly what he'd said he would.
 
+The video closes with Julius breaking the fourth wall to ask viewers to follow and subscribe (or he'll come back with a fleet).
+
 Dialogue is paraphrased for comedy, and the Blackbeard cameo (born c. 1680) is a deliberate anachronism.
 
-**Output:** `caesar-pirates-video.mp4` — 1920×1080, 30 fps, ~59 s, H.264 + AAC.
+**Output:** `caesar-pirates-video.mp4` — 1920×1080, 30 fps, ~62 s, H.264 + AAC.
 
 ## Cast (stickman bodies, caricature heads)
 Julius Caesar (laurel wreath, toga, deadpan) · the pirate captain (eyepatch, bandana) · bald handlebar-moustache pirate ·
@@ -32,7 +34,7 @@ Scene timing is derived from the real duration of each Kokoro clip (`timeline.js
 pip install kokoro-onnx soundfile scipy
 # put kokoro-v1.0.onnx and voices-v1.0.bin (kokoro-onnx release "model-files-v1.0") in ./models
 python3 src/audio.py models build
-node src/render.js build/timeline.json build/frames 0 1779 4     # needs: npm i playwright
+node src/render.js build/timeline.json build/frames 0 1873 4     # needs: npm i playwright
 ffmpeg -framerate 30 -i build/frames/f%05d.png -i build/audio.wav \
   -af "loudnorm=I=-16:TP=-1.5:LRA=11,aformat=sample_rates=48000:channel_layouts=stereo" \
   -c:v libx264 -preset slow -crf 16 -pix_fmt yuv420p -c:a aac -b:a 192k -shortest -movflags +faststart out.mp4

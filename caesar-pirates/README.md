@@ -13,8 +13,8 @@ The video closes with Julius breaking the fourth wall to ask viewers to follow a
 Dialogue is paraphrased for comedy, and the Blackbeard cameo (born c. 1680) is a deliberate anachronism.
 
 **Output:**
-- `caesar-pirates-reel-9x16.mp4` — **portrait 1080×1920** for Instagram Reels / YouTube Shorts / TikTok (~66 s)
-- `caesar-pirates-video.mp4` — 1920×1080, 30 fps, ~66 s, H.264 + AAC.
+- `caesar-pirates-reel-9x16.mp4` — **portrait 1080×1920** for Instagram Reels / YouTube Shorts / TikTok (~73 s)
+- `caesar-pirates-video.mp4` — 1920×1080, 30 fps, ~73 s, H.264 + AAC.
 
 ## Cast (stickman bodies, caricature heads)
 Julius Caesar (laurel wreath, toga, deadpan) · the pirate captain (eyepatch, bandana) · bald handlebar-moustache pirate ·
@@ -23,9 +23,9 @@ skull-bandana pirate · Blackbeard (smoking beard, from the wrong century)
 ## How it was made
 | Stage | Tool |
 |---|---|
-| Voices | [Kokoro-82M](https://github.com/hexgrad/Kokoro-82M) via `kokoro-onnx`, **cast and directed per character**: narrator `af_heart` (Kokoro's best-rated voice); Caesar = custom blend of `am_michael` + `bm_george`, slightly deeper, warm, with a touch of room echo; pirate captain = `am_onyx` pitched down and gravelled; skull-bandana pirate = `am_puck` pitched up; Blackbeard = a deep, cavernous `am_onyx`/`am_fenrir` blend. Lines are synthesised phrase by phrase with per-phrase speed and pauses for comedic timing, pirate dialect for the crew, and an overlapping three-pirate crowd laugh |
+| Voices | [Kokoro-82M](https://github.com/hexgrad/Kokoro-82M) via `kokoro-onnx`: a single clean male voice (`am_michael`) for the narrator and every character, at natural speaking pace with no pitch-shifting, distortion or echo, so every word is easy to understand. Lines are synthesised phrase by phrase (exact timings, comedic pauses) and given only a light rumble filter and presence boost |
 | Lip-sync | mouth opening follows loudness, mouth *width* follows spectral brightness ("ee" vs "oo") |
-| SFX, sea ambience, pirate-waltz score | synthesised with NumPy/SciPy (`src/audio.py`); music ducks under speech |
+| SFX and a soft pirate-waltz score | synthesised with NumPy/SciPy (`src/audio.py`); no ocean noise bed, music well below the voice and both ducked hard whenever someone speaks |
 | Animation | hand-written Canvas 2D engine (`src/engine.js`, `src/scenes.js`): hand-drawn "boiling" lines, a cinematic camera (push-ins, whip-pans, screen shake), speech-driven head/body acting, squash-and-stretch, a day/night time-lapse, swinging boarders, coin-eyed greed, rolling-on-the-floor laughter, cannon volleys |
 | Frame capture | headless Chromium via Playwright (`src/render.js`) |
 | Encode / mux | ffmpeg (loudness-normalised to about -16 LUFS) |

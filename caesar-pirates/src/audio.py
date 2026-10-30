@@ -17,18 +17,12 @@ rngv = np.random.default_rng(21)
 
 # ------------------------------------------------------------------ casting
 # v: voice name or (nameA, wA, nameB, wB) blend;  f: pitch/body factor (<1 deeper & bigger);  rasp: gravel;  wet: room echo
-CAST = {
-    "narr":       dict(v="af_heart", f=1.00, rasp=0.0, noise=0.0, warm=0.10, wet=0.00, lang="en-us"),
-    "caesar":     dict(v=("am_michael", .55, "bm_george", .45), f=0.95, rasp=0.0, noise=0.0, warm=0.30, wet=0.10, lang="en-gb"),
-    "captain":    dict(v="am_onyx", f=0.86, rasp=2.2, noise=0.018, warm=0.25, wet=0.0, lang="en-us"),
-    "bald":       dict(v="am_fenrir", f=0.97, rasp=1.4, noise=0.01, warm=0.10, wet=0.0, lang="en-us"),
-    "skinny":     dict(v="am_puck", f=1.22, rasp=0.0, noise=0.0, warm=0.0, wet=0.0, lang="en-us"),
-    "blackbeard": dict(v=("am_onyx", .6, "am_fenrir", .4), f=0.74, rasp=3.2, noise=0.022, warm=0.35, wet=0.16, lang="en-us"),
-}
+CAST = {k: dict(v="am_michael", f=1.00, rasp=0.0, noise=0.0, warm=0.0, wet=0.0, lang="en-us")
+        for k in ("narr", "caesar", "captain", "bald", "skinny", "blackbeard")}
 # phrase = (text, speed, pause_after)   -- "laugh" = overlapping pirate crowd laughter
 BEATS = [
     dict(id="b1", who="narr", cast="narr", ph=[("Seventy-five B.C.", 1.1, .15), ("Young Julius Caesar is off to Rhodes, to study public speaking.", 1.15, .2), ("Then, pirates show up.", 1.05, .35), ("Awkward.", .88, 0)], gap=.62),
-    dict(id="b2", who="captain", cast="captain", ph=[("Arr!", 1.0, .1), ("We be wantin' twenty talents o' silver!", 1.02, 0)], gap=.2),
+    dict(id="b2", who="captain", cast="captain", ph=[("Arr!", 1.0, .1), ("We want twenty talents of silver!", 1.0, 0)], gap=.2),
     dict(id="b3", who="caesar", cast="caesar", ph=[("Twenty?!", .95, .25), ("Do you have ANY idea who I am?", 1.0, .3), ("Make it... fifty.", .92, 0)], gap=.25),
     dict(id="b3b", who="captain", cast="captain", ph=[("F-fifty?!", 1.0, .2), ("Aye. Fifty it is, then.", 1.0, 0)], gap=.25),
     dict(id="b4", who="narr", cast="narr", ph=[("Yes.", 1.0, .3), ("The hostage raised his own ransom.", 1.12, 0)], gap=.25),
@@ -37,7 +31,7 @@ BEATS = [
     dict(id="b6b", who="narr", cast="narr", ph=[("The pirates actually tiptoed.", 1.08, 0)], gap=.22),
     dict(id="b7", who="narr", cast="narr", ph=[("He read them his poetry.", 1.15, .2), ("When they didn't applaud,", 1.15, .2), ("he called them illiterate barbarians.", 1.12, 0)], gap=.22),
     dict(id="b8", who="caesar", cast="caesar", ph=[("Oh, and when this is over,", 1.0, .25), ("I'll have every one of you... crucified.", .9, 0)], gap=.22),
-    dict(id="b9", who="pirate", cast="captain", ph=["laugh", ("Oh, ye be a funny one, lad!", 1.02, 0)], gap=.25),
+    dict(id="b9", who="pirate", cast="captain", ph=["laugh", ("Oh, you are a funny one, lad!", 1.0, 0)], gap=.25),
     dict(id="b9b", who="blackbeard", cast="blackbeard", ph=[("I'm from seventeen eighteen.", .95, .3), ("Why am I here?", .9, 0)], gap=.25),
     dict(id="b10", who="narr", cast="narr", ph=[("They thought he was joking.", 1.12, .3), ("The ransom was paid,", 1.15, .1), ("and Caesar sailed off, raised a fleet,", 1.18, .1), ("and came straight back.", 1.1, 0)], gap=.22),
     dict(id="b11", who="narr", cast="narr", ph=[("He caught every last pirate,", 1.12, .15), ("took the silver back, with interest,", 1.12, .15), ("and kept his promise.", 1.05, 0)], gap=.25),
@@ -68,13 +62,14 @@ def chain(x, c):
     if c["rasp"] > 0:
         d = c["rasp"]; x = .45 * x + .55 * np.tanh(x * d * 4) / np.tanh(d * 4) * (np.max(np.abs(x)) + 1e-9)
         x = x + highp(rngv.standard_normal(len(x)), 1800) * np.abs(x) * c["noise"] * 6
+    x = highp(x, 70); x = x + .22 * sosfilt(butter(2, [1800, 4200], "bandpass", fs=SR, output="sos"), x)
     if c["warm"] > 0: x = x + lowp(x, 260) * c["warm"] * 2.2
     if c["wet"] > 0: x = reverb(x, c["wet"])
     return x.astype(np.float32)
 def say(text, cast, sp):
     c = CAST[cast]; f = c["f"]
     r = Fraction(1 / f).limit_denominator(40); f_eff = float(1 / r)
-    s, sr = kokoro.create(text, voice=voice_style(c["v"]), speed=float(np.clip(1.07 * sp / f_eff, .5, 2.0)), lang=c["lang"])
+    s, sr = kokoro.create(text, voice=voice_style(c["v"]), speed=float(np.clip(min(sp, 1.0) / f_eff, .5, 2.0)), lang=c["lang"])
     x = to48(trim(s.astype(np.float32)), sr)
     if abs(f - 1) > .005: x, _ = varispeed(x, f)
     return chain(x, c)
@@ -284,10 +279,11 @@ for bar in range(nbars):
         if (bar // 2) % 2 == 0 or k != 1: add(fiddle(midi(mel[idx]), beat * .92, .13), t0 + k * beat)
 music = lp(music, 6500); music *= .55 / (np.max(np.abs(music)) + 1e-9)
 venv = np.convolve(np.abs(voice), np.ones(int(.06*SR)) / int(.06*SR), mode="same")
-duck = np.convolve(1 - .65 * np.clip(venv / .08, 0, 1), np.ones(int(.12*SR)) / int(.12*SR), mode="same")
+duck = np.convolve(1 - .88 * np.clip(venv / .05, 0, 1), np.ones(int(.12*SR)) / int(.12*SR), mode="same")
 music *= duck * np.minimum(1, np.arange(N) / (.4*SR)) * np.minimum(1, (N - np.arange(N)) / (1.4*SR))
 
-mix = voice + sfx * .55 + music * .32 + sea
+sfx = sfx * (1 - .6 * np.clip(venv / .06, 0, 1)).astype(np.float32)   # keep effects out of the way of speech
+mix = voice * 1.15 + sfx * .30 + music * .10
 pk = np.max(np.abs(mix)); mix = mix * (.92 / pk) if pk > .92 else mix
 sf.write(f"{OUT}/audio.wav", mix, SR, subtype="PCM_16")
 beats_out = [{k: v for k, v in b.items() if k != "segs"} | {"segs": [[s, round(a, 3), round(c, 3)] for s, a, c in b["segs"]]} for b in BEATS]

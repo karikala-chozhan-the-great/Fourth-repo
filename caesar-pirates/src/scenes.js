@@ -260,7 +260,7 @@ function S1(t) {
 }
 
 // ---- S2: the ransom negotiation: whip-pans, punch-ins, coin-eyed captain
-const camS2 = t => kf(t, [[E.cut1 - .1, 1150, 560, 1.12], [11.1, 1150, 560, 1.12], [11.5, 650, 520, 1.4], [E.gong, 620, 500, 1.55], [E.cross20 - .1, 600, 480, 1.7], [E.price50 - .15, 600, 480, 1.75], [E.price50, 590, 470, 2.1], [E.jawdrop - .15, 590, 470, 2.1], [E.jawdrop + .05, 1250, 500, 2.0], [E.chart - .45, 1250, 500, 2.1], [E.chart - .02, 960, 540, 1.0], [E.cut2 + .3, 960, 540, 1.04]]);
+const camS2 = t => kf(t, [[E.cut1 - .1, 1150, 560, 1.12], [beat('b3').start - .14, 1150, 560, 1.12], [beat('b3').start + .26, 650, 520, 1.4], [E.gong, 620, 500, 1.55], [E.cross20 - .1, 600, 480, 1.7], [E.price50 - .15, 600, 480, 1.75], [E.price50, 590, 470, 2.1], [E.jawdrop - .15, 590, 470, 2.1], [E.jawdrop + .05, 1250, 500, 2.0], [E.chart - .45, 1250, 500, 2.1], [E.chart - .02, 960, 540, 1.0], [E.cut2 + .3, 960, 540, 1.04]]);
 function S2(t) {
   deckBG({ sky: ['#6fcdf2', '#fff2d2'], sea: ['#35b3d1', '#14688f'], sun: [1500, 240, 64], gulls: [[300, 200], [900, 140]] });
   barrel(130, GY + 20, 120, 150); barrel(1810, GY + 10, 110, 140);
@@ -269,7 +269,7 @@ function S2(t) {
   const lipC = t < beat('b3').start ? lip('b2', t) : lip('b3b', t);
   const lipH = lip('b3', t), jt = t - E.jawdrop, sq = jt > 0 && jt < 1.2 ? .14 * Math.exp(-jt * 5) * Math.sin(jt * 28) : 0;
   const caesar = { kind: 'caesar', x: 560, y: GY, s: 1.25, dir: 1, ...lipH, tied: true, ph: 1, expr: t > E.price50 - .2 ? 'smug' : (t > beat('b3').start ? 'surprised' : 'smug'), look: 1,
-    pose: { la: [.5, .6], ra: [.45, .75], tilt: lipH.mouth > .3 ? -.07 : 0, lean: -.1 * P(t, 11.2, 11.5) * (1 - P(t, 12.0, 12.4)) }, anger: t > beat('b3').start && t < E.gong + 1.5 ? .5 * Math.sin(P(t, beat('b3').start, E.gong + 1.5) * 3.14) : 0 };
+    pose: { la: [.5, .6], ra: [.45, .75], tilt: lipH.mouth > .3 ? -.07 : 0, lean: -.1 * P(t, beat('b3').start - .04, beat('b3').start + .26) * (1 - P(t, beat('b3').start + .76, beat('b3').start + 1.16)) }, anger: t > beat('b3').start && t < E.gong + 1.5 ? .5 * Math.sin(P(t, beat('b3').start, E.gong + 1.5) * 3.14) : 0 };
   const capt = { kind: 'captain', x: 1330, y: GY, s: 1.25, dir: -1, ...(jaw ? { mouth: .95, mw: .3 } : lipC), ph: 4, expr: greedy ? 'coin' : 'neutral', look: -1,
     sweat: false, sy: 1 + sq, sx: 1 - sq * .8, hop: jt > 0 && jt < .5 ? Math.sin(jt * 6.28) * 46 : 0,
     pose: t < E.jawdrop ? { la: gesture(lipC.mouth, [.9, .6], .6), ra: [1.5 + Math.sin(t * 6) * .1 * lipC.mouth, .1], lean: .05 } : { la: [.9, 1.5 + Math.sin(t * 14) * .2], ra: [.8, 1.6 - Math.sin(t * 14) * .2], lean: .1 },
@@ -298,7 +298,7 @@ function S2(t) {
     text('ASKING PRICE', -225, 128, { size: 30, color: '#3b2a1a', align: 'left' }); text('(his own!)', 150, 128, { size: 30, color: '#3b2a1a' }); ctx.restore();
     shout('UPWARDS!', 960, 520, E.upwards - .05, E.upwards + 1.3, { font: 'title', size: 130, color: '#2e9c4f', rot: -.1, sw: 18, stroke: '#fff' });
   }
-  bubble('Arr! We be wantin\' twenty talents o\' silver!', 1500, 240, capt.hx - 30, capt.hy - 70, beat('b2').start, beat('b2').end + .1, { size: 46, maxW: 470 });
+  bubble(beat('b2').text, 1500, 240, capt.hx - 30, capt.hy - 70, beat('b2').start, beat('b2').end + .1, { size: 46, maxW: 470 });
   bubble('Twenty?! Do you have ANY idea who I am? Make it... fifty.', 470, 260, caesar.hx + 20, caesar.hy - 70, beat('b3').start, beat('b3').end + .1, { size: 46, maxW: 480 });
   bubble("F-fifty?! Aye. Fifty it is, then.", 1420, 230, capt.hx - 30, capt.hy - 70, beat('b3b').start, beat('b3b').end + .1, { size: 46, maxW: 460 });
   tag('PIRATE CAPTAIN', ['Hobbies: kidnapping.', 'Weakness: maths.'], 1640, 560, E.cut1 + .2, E.ransom20 + 1.2, { rot: .03 });
@@ -394,7 +394,7 @@ function S4(t) {
     }
   });
   bubble("Oh, and when this is over, I'll have every one of you... crucified.", 560, 240, caesar.hx - 10, caesar.hy - 70, beat('b8').start, beat('b8').end + .1, { size: 46, maxW: 540 });
-  bubble("Oh, ye be a funny one, lad!", 480, 250, capt.hx, capt.hy - 70, beat('b9').segs[1][1], beat('b9').end + .1, { size: 50, maxW: 440 });
+  bubble(beat('b9').segs[1][0], 480, 250, capt.hx, capt.hy - 70, beat('b9').segs[1][1], beat('b9').end + .1, { size: 50, maxW: 440 });
   if (t >= E.laugh && t < beat('b9').segs[1][1]) shout('HA HA HA!', 960, 440, E.laugh, beat('b9').segs[1][1], { size: 120, color: '#fff', stroke: '#8a3a2a', sw: 18, rot: .05 });
   tag('BLACKBEARD', ['Born 1680. Wrong video.'], 1700, 400, E.bb + .15, beat('b9b').end, { rot: .03, color: '#e2e2ea' });
   bubble("I'm from seventeen eighteen. Why am I here?", 1230, 215, blackbeard.hx - 20, blackbeard.hy - 70, beat('b9b').start, beat('b9b').end + .1, { size: 44, maxW: 500 });

@@ -122,7 +122,8 @@ class Sim {
   // ---------------------------------------------------------------- running
   stepFrame() {
     const rate = this.timeScale(this.t, this);
-    this.subsPerFrame = Math.max(1, Math.round(rate * SUB / FPS));
+    this.subAcc = (this.subAcc || 0) + rate * SUB / FPS;                     // fractional rates: some frames take one sub-step fewer (4 -> 3.6 on average at 0.9x)
+    this.subsPerFrame = Math.max(1, Math.floor(this.subAcc + 1e-9)); this.subAcc -= this.subsPerFrame;
     for (let s = 0; s < this.subsPerFrame; s++) {
       this.subIdx = s;
       this.t += 1 / SUB;
@@ -180,7 +181,7 @@ class Sim {
 
   export() {
     return {
-      fps: FPS, ppm: PPM, W: this.worldW, vw: this.view.w, vh: this.view.h,
+      fps: FPS, ppm: PPM, W: this.worldW, vw: this.view.w, vh: this.view.h, hscroll: !!this.hscroll,
       items: this.items.map(it => ({ id: it.id, type: it.type, mat: it.mat, style: it.style, name: it.name, hue: it.hue, hero: it.hero, z: it.z,
         x: r3(it.x), y: r3(it.y), a: r3(it.a), shapes: it.shapes, deco: it.deco })),
       dyn: this.items.filter(i => i.type !== 'static').map(i => i.id),

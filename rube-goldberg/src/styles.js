@@ -99,6 +99,38 @@ Object.assign(STYLES, {
   },
   bar(it) { generic(it, PAL.metal, 0); },
   pad(it) { generic(it, [hsl(it.hue, 80, 62), hsl(it.hue, 70, 24), hsl(it.hue, 90, 84)], 0); },
+  bowlpin(it) {                                   // white pin with two red stripes
+    const p = it.shapes[0].pts, x0 = p[0][0], x1 = p[1][0], y0 = p[0][1], y1 = p[2][1], w = x1 - x0, h = y1 - y0;
+    ctx.beginPath(); ctx.moveTo(x0 + w * 0.2, y1); ctx.lineTo(x1 - w * 0.2, y1); ctx.lineTo(x1, y1 - h * 0.28); ctx.lineTo(x1 - w * 0.22, y0 + h * 0.34);
+    ctx.lineTo(x1 - w * 0.3, y0 + h * 0.12); ctx.quadraticCurveTo((x0 + x1) / 2, y0 - h * 0.08, x0 + w * 0.3, y0 + h * 0.12);
+    ctx.lineTo(x0 + w * 0.22, y0 + h * 0.34); ctx.lineTo(x0, y1 - h * 0.28); ctx.closePath();
+    ctx.fillStyle = '#fff6df'; ctx.fill(); ctx.lineWidth = 0.08; ctx.lineJoin = 'round'; ctx.strokeStyle = '#5a4a2a'; ctx.stroke();
+    ctx.fillStyle = '#ff4b4b'; ctx.fillRect(x0 + w * 0.26, y0 + h * 0.3, w * 0.48, h * 0.05); ctx.fillRect(x0 + w * 0.26, y0 + h * 0.4, w * 0.48, h * 0.05);
+  },
+  windmill(it) {                                  // four flat vanes round a hub
+    for (const sh of it.shapes) {
+      ctx.beginPath();
+      if (sh.t === 'c') ctx.arc(sh.x, sh.y, sh.r, 0, Math.PI * 2); else sh.pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]));
+      ctx.closePath(); ctx.fillStyle = hsl(it.hue, 75, 62); ctx.fill(); ctx.lineWidth = 0.08; ctx.lineJoin = 'round'; ctx.strokeStyle = hsl(it.hue, 70, 24); ctx.stroke();
+    }
+  },
+  chime(it) {                                     // hanging chime bar: coloured bar with a hinge dot
+    const p = it.shapes[0].pts, x0 = p[0][0], x1 = p[1][0], y0 = p[0][1], y1 = p[2][1];
+    ctx.beginPath(); ctx.rect(x0, y0, x1 - x0, y1 - y0); ctx.fillStyle = hsl(it.hue, 80, 62); ctx.fill(); ctx.lineWidth = 0.08; ctx.strokeStyle = hsl(it.hue, 70, 24); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, 0.16, 0, Math.PI * 2); ctx.fillStyle = '#26365c'; ctx.fill();
+  },
+  cart(it) { generic(it, PAL.metal, 0); },
+  cartwheel(it) {                                 // wheel with a cross
+    const r = it.shapes[0].r;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fillStyle = '#4a5f8f'; ctx.fill(); ctx.lineWidth = 0.1; ctx.strokeStyle = '#26365c'; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-r * 0.8, 0); ctx.lineTo(r * 0.8, 0); ctx.moveTo(0, -r * 0.8); ctx.lineTo(0, r * 0.8); ctx.lineWidth = 0.09; ctx.strokeStyle = '#e4eeff'; ctx.stroke();
+  },
+  bumper(it) {                                    // round pinball bumper: coloured disc with a lighter core
+    const r = it.shapes[0].r;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fillStyle = hsl(it.hue, 80, 60); ctx.fill();
+    ctx.lineWidth = 0.1; ctx.strokeStyle = hsl(it.hue, 70, 24); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.5, 0, Math.PI * 2); ctx.fillStyle = hsl(it.hue, 90, 84); ctx.fill();
+  },
   block(it) { generic(it, [hsl(it.hue, 62, 62), hsl(it.hue, 55, 24), hsl(it.hue, 75, 82)], 0); },
   arm(it) {
     shapePath(it); ctx.fillStyle = '#f2b56b'; ctx.fill(); ctx.lineWidth = 0.1; ctx.lineJoin = 'round'; ctx.strokeStyle = '#5b3416'; ctx.stroke();

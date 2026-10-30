@@ -4,11 +4,12 @@
 one drops an anvil on a big button that lights a heart. Clean and minimal: **no text, no overlays, no effects** — just the machine and its
 sound. Nothing is keyframed: every ball, domino, pulley and bucket is simulated, and the video is whatever the physics did.
 
-**Output** (three cuts)
+**Output** (four cuts)
+- `rube-goldberg-tour-16x9.mp4` — **the "tour": a second, different landscape cut for YouTube, 1920×1080, 30 fps, 2:41**, a side-scrolling machine of 33 different mechanisms (see below)
 - `rube-goldberg-3min-16x9.mp4` — **the three-minute landscape version for YouTube: 1920×1080, 30 fps, 2:50**, 29 steps (see below)
 - `rube-goldberg-reel-60s-9x16.mp4` — the one-minute vertical version: 1080×1920, 59 s, 18 steps
 - `rube-goldberg-reel-9x16.mp4` — the short vertical version: 29 s, 12 steps
-- `thumbnail_3min_16x9.png` — cover frame of the long cut (the lit heart); `thumbnail_9x16.png` / `thumbnail_60s_9x16.png` — covers for the vertical cuts
+- `thumbnail_tour_16x9.png` / `thumbnail_3min_16x9.png` — covers of the two landscape cuts (the lit heart); `thumbnail_9x16.png` / `thumbnail_60s_9x16.png` — covers for the vertical cuts
 - all are H.264 + AAC at about -14 LUFS; the vertical ones are ready for Instagram Reels, YouTube Shorts and TikTok
 
 ## The machine (top to bottom)
@@ -73,6 +74,25 @@ ramps hand the ball from one half to the other. Real-time playback with slow-mot
 As in the other cuts, the plates, the tripwire and the scissors are triggers driven by what the physics did; everything else is straight rigid-body
 simulation. The chain was stress-tested for completion at several release times (the claw's let-go time) with no stray balls.
 
+## The tour (`--tour`) — a second landscape cut, built from scratch
+The first landscape cut stacks everything down one tall tower. This one is a **side-scrolling machine**: 33 modules laid end to end in a ~350 m-wide world, each in its own local
+coordinates (`src/machine_tour.js`), with the camera dropping in from a whole-machine shot, panning or cutting from module to module, following the wave of dominoes
+down the stairs and the anvil on its fall, and pulling back at the end. Real-time playback (0.8x between the big moments, 0.5x on a handful of hits), no text, no effects.
+
+| Part | What happens |
+|---|---|
+| Opening | a robotic claw lets go of a **Newton's cradle**; the flung ball **skips across seven rubber pads** (one note each) into a **pinball** box of six bumpers |
+| Dominoes, bowling, catapult | a 34-domino rainbow wave pushes a bowling ball into **seven pins**; a pin presses a plate that fires a **catapult**, which lobs a gold ball into a **pulley bucket** |
+| The ball flood | the bucket's weight hauls up a gate and **64 balls** pour through a **Plinko** board and **two windmills**, spin a **water wheel**, fill a bucket that lifts a **counterweight** |
+| ...and on | the counterweight opens the bucket's **hatch**; the balls bounce through a garden of big rubber **bumpers**, **trampolines**, **pinwheels**, **zig-zag trays**, a rainbow **xylophone slide**, a bumper lattice and a curtain of **swinging bars**, and finally pile onto a **weighing plate** |
+| The next ball | the plate (under the weight of the pile) pulls a pin: a ball sweeps through **chimes**, crosses a sagging **rope bridge** (12 hinged planks), tips a **teeter-totter**, and presses a plate that drops a **drawbridge** just ahead of it |
+| Domino stairs | it hits a **rail of five balls** (Newton's cradle on a track); the last one starts a **domino wave down nine steps**, which pushes a bowling ball down a ramp and through a **half-pipe** |
+| Finale | a plate lets go of a **wrecking ball** that swings into a tower of blocks; a ball rolls onto a plate that closes **scissors** on the anvil's rope; the **anvil** drops onto the big button and the **heart** lights up |
+
+As in the other cuts, the plates, the drawbridge and tripwire, and the scissors are triggers driven by what the physics did; everything else is straight rigid-body simulation.
+The tour re-uses the proven pulley / Plinko / wheel / counterweight / finale blocks of the other machines but is laid out and timed completely differently. Sounds pan with the
+camera and fade when they happen out of view.
+
 ## How it was made
 | Stage | Tool |
 |---|---|
@@ -105,5 +125,6 @@ python3 -I src/audio.py build/timeline.json build/audio.wav
 node --max-old-space-size=8192 src/render.js build/timeline.json build/frames 0 99999 4
 # then the same ffmpeg command, with -framerate 30 and the output named rube-goldberg-3min-16x9.mp4 (two-pass loudnorm gives a cleaner -14 LUFS)
 ```
+The second landscape cut (the tour, ~28 MB timeline) is the same three steps with `node src/sim.js build/timeline.json --tour`.
 Tweak the machine in `src/machine.js` (`src/machine_wide.js` for the landscape cut) (positions are metres, y down, 1 m = 50 px) and re-run; to change how long the heart is held at the end, edit `TAIL` in `src/sim.js`.
 Fonts in `fonts/` (Bangers, Comic Neue) are SIL OFL.

@@ -195,9 +195,9 @@ function drawBackground(T) {
   const cy = CAM ? CAM.cy : 0, S = PPM * 0.55;
   // parallax tile grid
   ctx.strokeStyle = 'rgba(140,150,255,0.07)'; ctx.lineWidth = 2;
-  const gs = 3 * S, oy = (-cy * S) % gs;
+  const gs = 3 * S, oy = (-cy * S) % gs, ox = TL.hscroll && CAM ? (SW / 2 - CAM.cx * S) % gs : 0;     // the side-scrolling tour pans the grid too
   ctx.beginPath();
   for (let y = oy - gs; y < SH + gs; y += gs) { ctx.moveTo(0, y); ctx.lineTo(SW, y); }
-  for (let x = 0; x < SW + gs; x += gs) { ctx.moveTo(x, 0); ctx.lineTo(x, SH); }
+  for (let x = ox - gs; x < SW + gs; x += gs) { ctx.moveTo(x, 0); ctx.lineTo(x, SH); }
   ctx.stroke();
 }

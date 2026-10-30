@@ -23,10 +23,24 @@ PANW = 21.6 if TL.get("W", 22.4) < 30 else TL["W"]          # world width used f
 tt = lambda n: np.arange(n) / SR
 
 
+HS = bool(TL.get("hscroll")); CAM = TL["cam"]; CUR_Y = None
+
+
+def view_pan(t, x, y):
+    """side-scrolling cut: pan by where the sound is on screen and fade sounds that happen out of view"""
+    c = CAM[min(int(t * FPS), len(CAM) - 1)]
+    s = c[2] * TL["ppm"]; hw, hh = TL["vw"] / 2 / s, TL["vh"] / 2 / s
+    px = (x - c[0]) / hw; py = 0.0 if y is None else (y - c[1]) / hh
+    off = max(abs(px), abs(py))
+    return float(np.clip(px, -1, 1)) * 0.6, (1.0 if off <= 1.05 else 0.35 if off <= 1.7 else 0.12)
+
+
 def add(sig, t, x=None, gain=1.0, pan=None):
     """mix a mono signal at time t (s); pan from world x (0..21.6) unless given"""
     i = int(t * SR)
     if i >= N or i < 0: return
+    if HS and x is not None and pan is None:
+        pan, g = view_pan(t, x, CUR_Y); gain *= g
     sig = sig[: N - i] * gain
     p = pan if pan is not None else (0.0 if x is None else (x / PANW * 2 - 1) * 0.5)
     gl, gr = np.sqrt((1 - p) / 2), np.sqrt((1 + p) / 2)
@@ -152,6 +166,7 @@ ev = [e for e in TL["events"] if e["type"] == "hit"]
 last = {}
 for k, e in enumerate(ev):
     ka, kb, v, t = e.get("ka") or "", e.get("kb") or "", e["v"], e["t"]
+    CUR_Y = e["y"]
     names = {ka, kb}
     if len(names) == 1 and ka == "" : continue
     key = (e["a"], e["b"])
@@ -160,9 +175,21 @@ for k, e in enumerate(ev):
     g = min(1.0, (v / 11.0) ** 0.7)
     x = e["x"]
     small = ka == "pball" or kb == "pball"
-    if "peg" in names:
+    knote = next((n for n in names if n.startswith(("chime", "swingbar"))), None)
+    if "bumper" in names or "tramp" in names or {"xyA", "xyB"} & names or ("pad" in names and HS):
+        if small and rng.random() < (0.55 if "bumper" in names else 0.8): continue
+        base = {"bumper": 3, "tramp": 0, "xyA": 5, "xyB": 5, "pad": 0}
+        k = next(n for n in ("bumper", "tramp", "xyA", "xyB", "pad") if n in names)
+        add(s_marimba(mid(PENT[int(abs(x) * 0.9 + base[k]) % len(PENT)] + (12 if k == "bumper" else 0)), v), t, x, (0.10 if small else 0.2) * max(0.4, g))
+    elif knote:                                            # hanging bars: bright bell-like notes
+        idx = int(knote[5:]) if knote.startswith("chime") else int(abs(x) * 1.7)
+        if small and rng.random() < 0.6: continue
+        add(s_marimba(mid(PENT[idx % len(PENT)] + 12), v), t, x, (0.10 if small else 0.22) * max(0.4, g))
+    elif "windmill" in names or "bowlpin" in names:
+        add(s_clack(v, big=("bowlpin" in names)), t, x, 0.3 * max(0.4, g))
+    elif "peg" in names:
         peg = e["a"] if ka == "peg" else e["b"]
-        xr = x - 26.4 if (x > 24 and PANW > 30) else x             # landscape cut: board #1 sits in the right half
+        xr = (x - 119.8) if HS else (x - 26.4 if (x > 24 and PANW > 30) else x)   # tour: plinko board sits at x=119.8; wide cut: board #1 in the right half
         idx = int(np.clip((xr - 3.4) / 15.2, 0, 0.999) * len(PENT))
         f = mid(PENT[idx]) * (2 if rng.random() < 0.15 else 1)
         if v < 2.0 and rng.random() < 0.45: continue
@@ -183,7 +210,7 @@ for k, e in enumerate(ev):
         add(s_clack(v, big=True), t, x, 0.5 * max(0.4, g))
     elif names & {"gate", "plate", "plate3", "plate4", "btn", "cw", "arm", "scissors", "pin"}:
         add(s_thock(v, 150), t, x, 0.7 * max(0.4, g))
-    elif names & {"T", "B", "L", "G", "J", "K", "H", "H2"}:
+    elif names & {"T", "B", "L", "G", "J", "K", "H", "H2", "N0", "N1", "N2", "N3", "N4"}:
         mats = {e.get("ma"), e.get("mb")}
         if "metal" in mats or names & {"colL", "colR", "tpost", "baffle", "pivot", "stopL", "stopR", "plateBase", "btnBase", "bucketStop", "hopperL", "hopperR"}:
             add(s_clang(v), t, x, 0.55 * max(0.35, g))
@@ -204,7 +231,7 @@ fin_t = None
 for e in TL["events"]:
     if e["type"] == "finale": fin_t = e["t"]
     if e["type"] != "sfx": continue
-    n = e["name"]
+    n = e["name"]; CUR_Y = e["y"]
     if n == "release":
         add(s_clack(1, big=True), e["t"], e["x"], 0.7); add(s_whoosh(0.3, 300, 2500, False), e["t"], e["x"], 0.25)
     elif n == "trigger":

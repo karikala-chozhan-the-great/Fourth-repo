@@ -73,9 +73,11 @@ Object.assign(STYLES, {
   },
   claw(it, f, x, y, a) {
     ctx.rotate(-a); const k = a;                  // opening amount is stored in the body angle
+    const sc = (it.deco && it.deco.s) || 1, rod = (it.deco && it.deco.rod) || 9;
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#26365c'; ctx.lineWidth = 0.46; ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(0, -1.2); ctx.stroke();
-    ctx.strokeStyle = '#a9bde0'; ctx.lineWidth = 0.26; ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(0, -1.2); ctx.stroke();
+    ctx.strokeStyle = '#26365c'; ctx.lineWidth = 0.46; ctx.beginPath(); ctx.moveTo(0, -rod); ctx.lineTo(0, -1.2 * sc); ctx.stroke();
+    ctx.strokeStyle = '#a9bde0'; ctx.lineWidth = 0.26; ctx.beginPath(); ctx.moveTo(0, -rod); ctx.lineTo(0, -1.2 * sc); ctx.stroke();
+    ctx.scale(sc, sc);
     ctx.beginPath(); ctx.roundRect(-0.7, -1.5, 1.4, 0.8, 0.2); ctx.fillStyle = '#a9bde0'; ctx.fill(); ctx.lineWidth = 0.1; ctx.strokeStyle = '#26365c'; ctx.stroke();
     for (const s of [-1, 1]) {
       ctx.save(); ctx.translate(s * 0.5, -0.9); ctx.rotate(s * (0.1 + k * 0.85));
@@ -96,6 +98,7 @@ Object.assign(STYLES, {
     ctx.beginPath(); ctx.arc(0, 0, r * 0.4, 0, 7); ctx.fillStyle = '#26365c'; ctx.fill();
   },
   bar(it) { generic(it, PAL.metal, 0); },
+  block(it) { generic(it, [hsl(it.hue, 62, 62), hsl(it.hue, 55, 24), hsl(it.hue, 75, 82)], 0); },
   arm(it) {
     shapePath(it); ctx.fillStyle = '#f2b56b'; ctx.fill(); ctx.lineWidth = 0.1; ctx.lineJoin = 'round'; ctx.strokeStyle = '#5b3416'; ctx.stroke();
     ctx.beginPath(); ctx.arc(0, 0, 0.42, 0, 7); ctx.fillStyle = '#a9bde0'; ctx.fill(); ctx.stroke();

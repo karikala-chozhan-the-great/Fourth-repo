@@ -3,12 +3,12 @@ const fs = require('fs');
 const { build } = require('./machine');
 const { FPS } = require('./engine');
 const out = process.argv[2] || 'timeline.json';
-const secs = +(process.argv[3] || 60);
+const secs = +(process.argv[3] || 150);
 const probe = process.argv.includes('--probe');
-const M = build();
+const M = build({ long: process.argv.includes('--long') });
 const S = M.sim;
 const n = Math.round(secs * FPS);
-const TAIL = 3.2 * FPS;
+const TAIL = M.tail * FPS;
 const t0 = Date.now();
 for (let f = 0; f < n; f++) {
   S.stepFrame();

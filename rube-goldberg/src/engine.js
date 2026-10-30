@@ -143,6 +143,7 @@ class Sim {
     if (this.camFn) this.camFn(c, this);
     const k = 1 - Math.exp(-c.k * dt);
     c.cy += (c.ty - c.cy) * k; c.s += (c.ts - c.s) * k;
+    if (c.tcx !== undefined) c.cx += (c.tcx - c.cx) * k;
     c.trauma = Math.max(0, c.trauma - dt * 1.6); c.punch = Math.max(0, c.punch - dt * 2.2);
     const sh = c.trauma * c.trauma, tt = this.f / FPS;
     this.cam.push([r3(c.cx), r3(c.cy), r3(c.s * (1 + c.punch * 0.035)),

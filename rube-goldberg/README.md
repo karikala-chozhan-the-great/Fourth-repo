@@ -5,9 +5,11 @@ chained mechanisms; the last one drops an anvil on a big button that lights a he
 no effects** — just the machine and its sound. Nothing is keyframed: every ball, domino, pulley and bucket is simulated,
 and the video is whatever the physics did.
 
-**Output**
-- `rube-goldberg-reel-9x16.mp4` — **1080×1920, 30 fps, 29 s**, H.264 + AAC (about -14 LUFS), ready for Instagram Reels, YouTube Shorts and TikTok
-- `thumbnail_9x16.png` — cover frame (the lit heart)
+**Output** (two cuts of the same machine)
+- `rube-goldberg-reel-60s-9x16.mp4` — **the one-minute version: 1080×1920, 30 fps, 59 s**, 18 steps (see below)
+- `rube-goldberg-reel-9x16.mp4` — the short version: 29 s, 12 steps
+- `thumbnail_9x16.png` — cover frame of the short version (the lit heart); `thumbnail_60s_9x16.png` — cover for the one-minute cut
+- both are H.264 + AAC at about -14 LUFS, ready for Instagram Reels, YouTube Shorts and TikTok
 
 ## The machine (top to bottom)
 | # | Step | What happens |
@@ -29,6 +31,26 @@ and the video is whatever the physics did.
 Two links are triggers rather than mechanics: the pressure plate switches on the catapult arm's motor, and the scissors close (cutting the anvil's rope)
 when the counterweight reaches the top of its travel. Both are driven by what the physics did, so the timing is never hand-set.
 
+## The one-minute version (`--long`)
+It is a genuinely longer machine, not a slowed-down one. Steps 1–9 are the same; the counterweight now pulls a tripwire instead of closing the
+scissors directly, and a second half-machine sits between it and the anvil:
+
+| # | Step | What happens |
+|---|---|---|
+| 10 | **Tripwire** | the counterweight reaches the top and pulls a pin out from under a ball |
+| 11 | **Ramps** | the ball runs down a short ramp, hits the wall and takes a long ramp back across the machine |
+| 12 | **Dominoes** | it drops onto a return ramp and into a second, rainbow run of 16 dominoes |
+| 13 | **Pendulum** | the last domino pushes a ball down a ramp onto a second pressure plate, which lets go of a wrecking ball |
+| 14 | **Tower** | the wrecking ball swings into a stack of six blocks |
+| 15 | **Final ramp** | the falling blocks knock a ball off its shelf and it rolls down a ramp |
+| 16 | **Snip** | the ball lands on a third plate, which closes the scissors on the anvil's rope |
+| 17 | **The anvil** | it falls about 20 m onto the red button |
+| 18 | **The heart** | the heart lights up |
+
+Playback is real time, with gentle slow-motion on the cradle hit, both domino runs, the catapult, the tower smash and the anvil impact.
+Another tripwire-style link (the third plate closing the scissors) is a scripted trigger like the others; the rest is physics.
+The same 5-release-time stress test as the short cut passes (the chain completes every time, no stray balls).
+
 ## How it was made
 | Stage | Tool |
 |---|---|
@@ -45,14 +67,14 @@ when the counterweight reaches the top of its travel. Both are driven by what th
 ```bash
 cd rube-goldberg
 npm i planck playwright && pip install numpy scipy soundfile      # (playwright needs its Chromium: npx playwright install chromium)
-node src/sim.js build/timeline.json                              # physics -> timeline (poses, collisions, camera)
+node src/sim.js build/timeline.json                              # physics -> timeline (poses, collisions, camera); add --long for the one-minute version
 python3 -I src/audio.py build/timeline.json build/audio.wav      # foley + music from the collision log
 node src/render.js build/timeline.json build/frames 0 9999 6     # JPEG frames, 6 workers
 ffmpeg -framerate 30 -i build/frames/f%05d.jpg -i build/audio.wav \
   -vf "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p" \
   -af "loudnorm=I=-14:TP=-1.5:LRA=11,aformat=sample_rates=48000:channel_layouts=stereo" \
   -c:v libx264 -preset slow -crf 17 -colorspace bt709 -color_primaries bt709 -color_trc bt709 \
-  -c:a aac -b:a 192k -shortest -movflags +faststart rube-goldberg-reel-9x16.mp4
+  -c:a aac -b:a 192k -shortest -movflags +faststart rube-goldberg-reel-9x16.mp4      # (60 s cut: use --long and name it ...-60s-...)
 ```
 Tweak the machine in `src/machine.js` (positions are metres, y down, 1 m = 50 px) and re-run; to change how long the heart is held at the end, edit `TAIL` in `src/sim.js`.
 Fonts in `fonts/` (Bangers, Comic Neue) are SIL OFL.

@@ -17,6 +17,7 @@ function seg(ax, ay, bx, by, th, o = {}) {
 }
 
 function build(opts = {}) {
+  const LONG = !!opts.long;          // the one-minute version adds a second half-machine before the anvil
   const S = new Sim(26);
   const hero = {};
   const M = { sim: S, hero };
@@ -45,7 +46,7 @@ function build(opts = {}) {
   const c1p = cradle[0].body.getPosition(), c1 = { x: c1p.x, y: c1p.y };   // copy: getPosition() is a live reference
   const claw = S.add({ type: 'visual', x: c1.x, y: c1.y - 1.0, mat: 'metal', style: 'claw', name: 'claw', z: 5,
     fix: [{ box: [0, 0, 0.5, 0.5] }] });
-  const tStart = 0.5;
+  const tStart = opts.tStart !== undefined ? opts.tStart : LONG ? 1.2 : 0.5;
   S.at(tStart, s => {
     cradle[0].body.setType('dynamic'); cradle[0].body.setAwake(true);
     s.sound('release', c1.x, c1.y, 1); s.step(1, 'NEWTON\'S CRADLE');
@@ -209,8 +210,11 @@ function build(opts = {}) {
   S.add({ type: 'static', mat: 'metal', style: 'rail', name: 'cwrail', z: -1, fix: [{ box: [cwx, 103.6, 0.12, 5.4], sensor: true }] });
   M.cw = cw; M.cwJ = cwJ; M.bucket2 = bucket2;
 
-  // ============================================================ 10. SNIP! the rising counterweight closes a pair of scissors on the anvil's rope
-  const anvX = 7.4, anvTop = 97.6;
+  // ============================================================ 10+. SNIP + ANVIL + LIKE
+  const anvX = LONG ? 15.4 : 7.4, anvTop = LONG ? 136.5 : 97.6;
+  const btnX = anvX, btnY = LONG ? 163.0 : 123.0;
+  const STEP = LONG ? { snip: 16, anvil: 17, fin: 18 } : { snip: 10, anvil: 11, fin: 12 };
+  let snipped = false, closing = null;
   const anvil = S.add({ type: 'dynamic', x: anvX, y: anvTop + 3.3 + 0.9, mat: 'metal', style: 'anvil', name: 'anvil', z: 2, bullet: true, hero: true,
     fix: [{ box: [0, 0, 1.35, 0.9], d: 4, f: 0.4 }] });
   M.anvil = anvil; hero.anvil = anvil;
@@ -218,37 +222,128 @@ function build(opts = {}) {
   const ropeLink = S.link({ kind: 'rope', pts: [{ x: anvX, y: anvTop }, { i: anvil, x: 0, y: -0.9 }], w: 0.09 });
   S.add({ type: 'static', mat: 'metal', style: 'post', name: 'hook', z: 1, fix: [{ box: [anvX, anvTop - 0.2, 0.5, 0.2] }] });
   const sciss = S.add({ type: 'visual', x: anvX, y: anvTop + 1.2, mat: 'metal', style: 'scissors', name: 'scissors', z: 4, fix: [{ box: [0, 0, 0.4, 0.4] }] });
-  sciss.open = 1;
-  // string from the counterweight over a tiny pulley to the scissors handles (visual)
-  S.link({ kind: 'rope', z: 1, pts: [{ i: cw, x: 0, y: -1.25 }, { x: cwx, y: 96.6 }, { x: anvX - 0.6, y: anvTop + 1.2 }], w: 0.05, col2: '#ffb3c7' });
-  S.add({ type: 'static', style: 'pulleydeco', name: 'sp', z: 1, deco: { kind: 'wheel', r: 0.35 }, x: cwx, y: 96.6, fix: [] });
-  let snipped = false;
-  S.every(() => {
-    const prog = Math.min(1, Math.max(0, (cw.body.getPosition().y - 1.25 - (cwTop - 1.25 - 0.0)) / 1.0));
-    const k = snipped ? 0 : Math.min(1, Math.max(0, (cw.body.getPosition().y - cwTop) / 2.4));
-    sciss.body.setTransform(V(anvX, anvTop + 1.2), snipped ? 0 : k);
-    if (!snipped && cwJ.getJointTranslation() < (cwTop - cwBot) + 0.12) {
-      snipped = true; sciss.body.setTransform(V(anvX, anvTop + 1.2), 0); S.world.destroyJoint(ropeJ); ropeLink.to = S.f + 1; ropeLink.cutAt = S.f; ropeLink.cut = true;
-      S.step(10, 'SNIP!', 108); S.sound('snip', anvX, anvTop + 1.2, 1);
-    }
-  });
+  const snipNow = () => {
+    snipped = true; sciss.body.setTransform(V(anvX, anvTop + 1.2), 0); S.world.destroyJoint(ropeJ);
+    ropeLink.to = S.f + 1; ropeLink.cutAt = S.f; ropeLink.cut = true;
+    S.step(STEP.snip, 'SNIP!', LONG ? 141 : 108); S.sound('snip', anvX, anvTop + 1.2, 1);
+  };
 
-  // ============================================================ 11. THE ANVIL falls onto the big LIKE button
-  S.trigger('S11', who => { S.step(11, 'THE ANVIL', 110); }, true, ['anvil']);
-  S.add({ type: 'static', style: 'sensor', fix: [{ box: [anvX, 109.0, 1.8, 0.6], sensor: true, tag: 'S11' }] });
-  const btnX = 7.4, btnY = 123.0;
+  if (!LONG) {
+    // string from the counterweight over a tiny pulley to the scissors handles (visual)
+    S.link({ kind: 'rope', z: 1, pts: [{ i: cw, x: 0, y: -1.25 }, { x: cwx, y: 96.6 }, { x: anvX - 0.6, y: anvTop + 1.2 }], w: 0.05, col2: '#ffb3c7' });
+    S.add({ type: 'static', style: 'pulleydeco', name: 'sp', z: 1, deco: { kind: 'wheel', r: 0.35 }, x: cwx, y: 96.6, fix: [] });
+    S.every(() => {
+      const k = snipped ? 0 : Math.min(1, Math.max(0, (cw.body.getPosition().y - cwTop) / 2.4));
+      sciss.body.setTransform(V(anvX, anvTop + 1.2), snipped ? 0 : k);
+      if (!snipped && cwJ.getJointTranslation() < (cwTop - cwBot) + 0.12) snipNow();
+    });
+  } else {
+    // ============================================================ NEW (one-minute version): a second half-machine between the counterweight and the anvil
+    const makePlate = (cx, top, name) => {
+      const p = S.add({ type: 'dynamic', x: cx, y: top + 0.25, mat: 'red', style: 'button', name, z: 2, fixedRot: true, fix: [{ box: [0, 0, 1.6, 0.25], d: 2.5, f: 0.5 }] });
+      const j = S.joint(pl.PrismaticJoint({ enableLimit: true, lowerTranslation: 0, upperTranslation: 0.45, enableMotor: true, motorSpeed: -3, maxMotorForce: 150 },
+        ground.body, p.body, V(cx, top + 0.25), V(0, 1)));
+      S.add({ type: 'static', mat: 'metal', style: 'post', name: name + 'Base', fix: [{ box: [cx, top + 1.9, 1.9, 0.9] }, { box: [cx - 2.1, top + 0.9, 0.2, 0.3] }] });
+      return { p, j };
+    };
+
+    // ---- 10. TRIPWIRE: the counterweight reaches the top and pulls a pin out from under a ball
+    plank(S, 4.8, 100.3, 7.5, 100.6, 0.5, { name: 'shelf0' });
+    const G = S.add({ type: 'dynamic', x: 7.0, y: 99.95, mat: 'steel', style: 'ball', name: 'G', hero: true, hue: 165, bullet: true, fix: [{ c: [0, 0, 0.55], d: 1.4, f: 0.35, e: 0.3 }] });
+    hero.G = G;
+    const pin = S.add({ type: 'kinematic', x: 7.78, y: 99.65, mat: 'metal', style: 'pin', name: 'pin', z: 1, fix: [{ box: [0, 0, 0.16, 0.8] }] });
+    S.link({ kind: 'rope', z: 1, pts: [{ i: cw, x: 0, y: -1.25 }, { x: cwx, y: 96.6 }, { i: pin, x: 0, y: -0.8 }], w: 0.05, col2: '#ffb3c7' });
+    S.add({ type: 'static', style: 'pulleydeco', name: 'sp', z: 1, deco: { kind: 'wheel', r: 0.35 }, x: cwx, y: 96.6, fix: [] });
+    let pinT = null;
+    S.every(t => {
+      if (pinT === null && cwJ.getJointTranslation() < (cwTop - cwBot) + 0.12) { pinT = t; S.step(10, 'TRIPWIRE', 104); S.sound('release', 7.7, 99.6, 1); }
+      const k = pinT === null ? 0 : Math.min(1, (t - pinT) / 0.2);
+      pin.body.setTransform(V(7.78, 99.65 + 2.6 * k), 0);
+    });
+
+    // ---- 11. RAMPS: down a short ramp, then the full width of the machine
+    plank(S, 7.7, 102.5, 14.0, 105.0, 0.5, { name: 'legA' });
+    plank(S, 15.7, 108.0, 2.0, 112.4, 0.5, { name: 'legB' });
+    S.trigger('S11', () => S.step(11, 'RAMPS', 108), true, ['G']);
+    S.add({ type: 'static', style: 'sensor', fix: [{ box: [9.0, 101.8, 1.4, 0.5], sensor: true, tag: 'S11' }] });
+
+    // ---- 12. DOMINOES: the ball hits the column, drops onto a return ramp and into a second domino run
+    plank(S, 0.4, 115.0, 4.2, 117.0, 0.5, { name: 'R2b' });
+    const P2y = 117.0, nD2 = 16;
+    plank(S, 4.2, P2y, 18.9, P2y, 0.6, { name: 'P2' });
+    for (let i = 0; i < nD2; i++) {
+      const last = i === nD2 - 1, h = last ? 2.4 : 1.6, w = last ? 0.36 : 0.3;
+      S.add({ type: 'dynamic', x: 6.0 + i * 0.76, y: P2y - h / 2, mat: 'domino', style: 'domino', name: 'domino', hue: 320 - (i / nD2) * 320,
+        fix: [{ box: [0, 0, w / 2, h / 2], d: last ? 2.2 : 1.3, f: 0.5, e: 0 }] });
+    }
+    S.trigger('S12', () => S.step(12, 'DOMINOES', 117), true, ['G']);
+    S.add({ type: 'static', style: 'sensor', fix: [{ box: [5.0, 116.0, 0.5, 1.0], sensor: true, tag: 'S12' }] });
+    const J = S.add({ type: 'dynamic', x: 18.4, y: P2y - 0.7, mat: 'steel', style: 'ball', name: 'J', hero: true, hue: 285, bullet: true, fix: [{ c: [0, 0, 0.7], d: 2.4, f: 0.3, e: 0.12 }] });
+    hero.J = J;
+
+    // ---- 13. PLATE -> PENDULUM: the last domino pushes a ball down a ramp onto a second pressure plate, which lets go of a wrecking ball
+    plank(S, 21.2, 120.0, 10.0, 123.4, 0.5, { name: 'R5' });
+    const P3 = makePlate(7.6, 124.2, 'plate3');
+    S.add({ type: 'static', mat: 'metal', style: 'post', name: 'baffle3', fix: [{ box: [5.5, 122.2, 0.3, 2.2] }] });
+    const pax = 14.0, pay = 123.2, PL = 7.0, th0 = rad(48);
+    const bx0 = pax + PL * Math.sin(th0), by0 = pay + PL * Math.cos(th0);
+    const bob = S.add({ type: 'static', rec: true, x: bx0, y: by0, mat: 'steel', style: 'cradle', name: 'bob', hero: true, bullet: true, fix: [{ c: [0, 0, 1.1], d: 6, f: 0.3, e: 0.2 }] });
+    hero.bob = bob;
+    S.joint(pl.DistanceJoint({ frequencyHz: 0 }, ground.body, bob.body, V(pax, pay), V(bx0, by0)));
+    S.link({ kind: 'rope', pts: [{ x: pax, y: pay }, { i: bob, x: 0, y: 0 }], w: 0.08 });
+    S.add({ type: 'static', mat: 'metal', style: 'post', name: 'pbracket', z: 1, fix: [{ box: [pax, pay - 0.15, 0.55, 0.25] }] });
+    const claw2 = S.add({ type: 'visual', x: bx0, y: by0 - 1.5, mat: 'metal', style: 'claw', name: 'claw2', z: 5, deco: { s: 1.5, rod: 3 }, fix: [{ box: [0, 0, 0.5, 0.5] }] });
+    let relT = null;
+    S.every(t => {
+      if (relT === null && P3.j.getJointTranslation() > 0.3) {
+        relT = t; S.step(13, 'PENDULUM', 127); bob.body.setType('dynamic'); bob.body.setAwake(true); S.sound('release', bx0, by0, 1);
+      }
+      const k = relT === null ? 0 : Math.min(1, (t - relT) / 0.35);
+      claw2.body.setTransform(V(bx0, by0 - 1.5 - 2.4 * k), k);
+    });
+
+    // ---- 14. TOWER: the wrecking ball smashes a stack of blocks...
+    plank(S, 6.5, 131.4, 12.4, 131.4, 0.6, { name: 'shelf3' });
+    for (let i = 0; i < 6; i++)
+      S.add({ type: 'dynamic', x: 11.0, y: 131.4 - 0.5 - i * 1.002 - 0.002, mat: 'wood', style: 'block', name: 'block', hue: 20 + i * 48, fix: [{ box: [0, 0, 0.7, 0.5], d: 1.0, f: 0.6, e: 0 }] });
+    S.trigger('S14', () => S.step(14, 'TOWER', 131), true, ['bob']);
+    S.add({ type: 'static', style: 'sensor', fix: [{ box: [12.0, 130.4, 0.5, 1.0], sensor: true, tag: 'S14' }] });
+    // ...which knocks a ball off the shelf
+    const K = S.add({ type: 'dynamic', x: 7.5, y: 131.4 - 0.6, mat: 'steel', style: 'ball', name: 'K', hero: true, hue: 25, bullet: true, fix: [{ c: [0, 0, 0.6], d: 3.0, f: 0.3, e: 0.25 }] });
+    hero.K = K;
+
+    // ---- 15/16. FINAL RAMP -> third plate, which closes the scissors on the anvil's rope
+    plank(S, 0.4, 134.4, 8.8, 137.2, 0.5, { name: 'R6' });
+    S.trigger('S15', () => S.step(15, 'FINAL RAMP', 138), true, ['K']);
+    S.add({ type: 'static', style: 'sensor', fix: [{ box: [6.0, 134.8, 1.8, 0.8], sensor: true, tag: 'S15' }] });
+    const P4 = makePlate(11.4, 140.0, 'plate4');
+    S.add({ type: 'static', mat: 'metal', style: 'post', name: 'baffle4', fix: [{ box: [13.55, 138.6, 0.2, 1.9] }] });
+    S.every(t => {
+      if (closing === null && !snipped && P4.j.getJointTranslation() > 0.25) closing = t;
+      if (snipped) return;
+      const k = closing === null ? 1 : Math.max(0, 1 - (t - closing) / 0.22);
+      sciss.body.setTransform(V(anvX, anvTop + 1.2), k);
+      if (closing !== null && k <= 0) snipNow();
+    });
+    M.P3 = P3; M.P4 = P4;
+  }
+  if (!LONG) sciss.body.setTransform(V(anvX, anvTop + 1.2), 1);
+
+  // ============================================================ THE ANVIL falls onto the big LIKE button
+  S.trigger('S11a', () => { S.step(STEP.anvil, 'THE ANVIL', LONG ? 152 : 110); }, true, ['anvil']);
+  S.add({ type: 'static', style: 'sensor', fix: [{ box: [anvX, btnY - 14.0, 1.8, 0.6], sensor: true, tag: 'S11a' }] });
   const btn = S.add({ type: 'dynamic', x: btnX, y: btnY + 0.35, mat: 'red', style: 'bigbutton', name: 'btn', z: 2, fixedRot: true,
     fix: [{ box: [0, 0, 2.6, 0.35], d: 3, f: 0.5 }] });
   const bj = S.joint(pl.PrismaticJoint({ enableLimit: true, lowerTranslation: 0, upperTranslation: 0.8, enableMotor: true, motorSpeed: -4, maxMotorForce: 300 },
     ground.body, btn.body, V(btnX, btnY + 0.35), V(0, 1)));
   S.add({ type: 'static', mat: 'metal', style: 'post', name: 'btnBase', fix: [{ box: [btnX, btnY + 3.4, 3.4, 1.3] }, { box: [btnX - 3.0, btnY + 1.0, 0.4, 1.0] }, { box: [btnX + 3.0, btnY + 1.0, 0.4, 1.0] }] });
-  S.add({ type: 'static', style: 'sign', name: 'likeSign', z: -2, x: btnX, y: 113.0, deco: { kind: 'heart', r: 4.2 }, fix: [] });
+  S.add({ type: 'static', style: 'sign', name: 'likeSign', z: -2, x: btnX, y: btnY - 10.0, deco: { kind: 'heart', r: 4.2 }, fix: [] });
   M.btn = btn; M.btnJ = bj;
   let pressed = false;
   S.every(() => {
     if (!pressed && snipped && bj.getJointTranslation() > 0.5) {
       pressed = true; M.pressedAt = S.f;
-      S.step(12, 'LIKE!', 112); S.sound('like', btnX, btnY, 1);
+      S.step(STEP.fin, 'LIKE!', LONG ? 154 : 112); S.sound('like', btnX, btnY, 1);
       S.events.push({ t: S.vt(), type: 'finale', x: btnX, y: btnY });
     }
   });
@@ -256,17 +351,22 @@ function build(opts = {}) {
   for (const p of M.pulleys) S.add({ type: 'static', style: 'pulleydeco', name: 'pulley', z: 1, deco: { kind: 'wheel', r: p.r }, x: p.x, y: p.y, fix: [] });
 
   // ------------------------------------------------------------ camera: one framing per step, follows the anvil on its way down
-  const CAMY = { 0: 19.2, 1: 19.2, 2: 21, 3: 26, 4: 32, 5: 40.5, 6: 52, 7: 68, 8: 83, 9: 99, 10: 103, 11: 110, 12: 108 };
+  const CAMY = LONG
+    ? { 0: 19.2, 1: 19.2, 2: 21, 3: 26, 4: 32, 5: 40.5, 6: 52, 7: 68, 8: 83, 9: 99, 10: 104, 11: 108, 12: 117, 13: 127, 14: 131, 15: 138, 16: 141, 17: 152, 18: 154 }
+    : { 0: 19.2, 1: 19.2, 2: 21, 3: 26, 4: 32, 5: 40.5, 6: 52, 7: 68, 8: 83, 9: 99, 10: 103, 11: 110, 12: 108 };
   S.camState.ts = 1;
-  // slow-mo on the big hits, time-lapse through the long rolls (sim seconds -> playback rate, multiples of 0.25)
-  const RATE = [[0, 1], [1.05, 0.5], [1.95, 1.5], [4.6, 0.75], [7.05, 1.75], [8.6, 1], [10.9, 0.5], [12.0, 1], [16.1, 1.25], [21.4, 1.5], [26.1, 1]];
+  // gentle speed changes: sim seconds -> playback rate (multiples of 0.25).  Long version: real time, slower on the big moments.
+  const RATE_LONG = [[0, 1], [1.0, 0.5], [2.0, 1], [4.5, 0.75], [7.4, 1], [11.0, 0.5], [12.6, 1], [16.0, 0.75], [17.6, 1], [31.2, 0.75], [34.4, 1], [37.6, 0.5], [40.0, 0.75], [41.6, 0.5], [43.2, 1]];
+  const RATE = LONG ? RATE_LONG.map(([a, v]) => [a ? a + (tStart - 0.5) : a, v]) : [[0, 1], [1.05, 0.5], [1.95, 1.5], [4.6, 0.75], [7.05, 1.75], [8.6, 1], [10.9, 0.5], [12.0, 1], [16.1, 1.25], [21.4, 1.5], [26.1, 1]];
   S.timeScale = t => { let r = 1; for (const [a, v] of RATE) if (t >= a) r = v; return r; };
   S.camFn = (c, sim) => {
     const n = sim.steps.length ? sim.steps[sim.steps.length - 1].n : 0;
     c.ty = CAMY[n] !== undefined ? CAMY[n] : c.ty; c.ts = 1; c.k = 3.2;
-    if (n === 11) { c.ty = Math.min(111, Math.max(104, anvil.body.getPosition().y + 5)); c.k = 6; }
-    if (n === 12) c.k = 1.4;
+    if (LONG) c.tcx = n >= STEP.snip ? 13.2 : W / 2;
+    if (n === STEP.anvil) { c.ty = LONG ? Math.min(157, Math.max(147, anvil.body.getPosition().y + 5)) : Math.min(111, Math.max(104, anvil.body.getPosition().y + 5)); c.k = 6; }
+    if (n === STEP.fin) c.k = 1.4;
   };
+  M.tail = LONG ? 5.0 : 3.2;                   // seconds the finished heart is held at the end
   return M;
 }
 

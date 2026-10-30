@@ -175,9 +175,13 @@ for k, e in enumerate(ev):
         add(s_tick_steel(v), t, x, 0.65 * max(0.45, g))
     elif names & {"bucket", "bucket2"}:
         add(s_tonk(v, 300 if "bucket" in names else 240), t, x, 0.5 * max(0.3, g))
-    elif names & {"gate", "plate", "btn", "cw", "arm", "scissors"}:
+    elif "bob" in names:                                   # wrecking ball: heavy thud + a metallic ring
+        add(mixs(s_thock(v, 110), 0.6 * s_clang(v)), t, x, 0.85 * max(0.5, g))
+    elif "block" in names:                                  # tower blocks: wooden knocks
+        add(s_clack(v, big=True), t, x, 0.5 * max(0.4, g))
+    elif names & {"gate", "plate", "plate3", "plate4", "btn", "cw", "arm", "scissors", "pin"}:
         add(s_thock(v, 150), t, x, 0.7 * max(0.4, g))
-    elif names & {"T", "B", "L"}:
+    elif names & {"T", "B", "L", "G", "J", "K"}:
         mats = {e.get("ma"), e.get("mb")}
         if "metal" in mats or names & {"colL", "colR", "tpost", "baffle", "pivot", "stopL", "stopR", "plateBase", "btnBase", "bucketStop", "hopperL", "hopperR"}:
             add(s_clang(v), t, x, 0.55 * max(0.35, g))
